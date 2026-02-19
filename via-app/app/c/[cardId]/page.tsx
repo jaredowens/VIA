@@ -144,10 +144,13 @@ function buildLink(
   }
 
   if (lower.includes("phone")) {
-    const phone = digitsOnlyPhone(v);
-    if (!phone) return { href: "" };
-    return { href: `tel:${phone}` };
-  }
+  const phone = digitsOnlyPhone(v);
+  if (!phone) return { href: "" };
+
+  // Open Messages instead of Call
+  return { href: `sms:${phone}`, fallback: `tel:${phone}` };
+}
+
 
   if (lower.includes("paypal")) {
     const user = v.replace(/^@/, "");
