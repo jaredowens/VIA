@@ -4,7 +4,8 @@ import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Mail, Phone } from "lucide-react";
-import { siVenmo, siPaypal, siCashapp } from "simple-icons";
+import { siVenmo, siPaypal, siCashapp } from "simple-icons/icons";
+
 
 
 type ViewStatus = "checking" | "unclaimed" | "claimed" | "notfound" | "error";
