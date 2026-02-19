@@ -1,8 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function Home() {
+  const [lastCardUrl, setLastCardUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      setLastCardUrl(localStorage.getItem("via:lastCardUrl"));
+    } catch {
+      setLastCardUrl(null);
+    }
+  }, []);
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
       <div className="pointer-events-none absolute inset-0">
@@ -30,6 +41,28 @@ export default function Home() {
           </div>
 
           <div className="mt-10 space-y-4">
+            {lastCardUrl ? (
+              <Link
+                href={lastCardUrl}
+                className="group relative block w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-center font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+              >
+                <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                </span>
+                Resume last card
+              </Link>
+            ) : null}
+
+            <Link
+              href="/enter"
+              className="group relative block w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-center font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+            >
+              <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+              </span>
+              Enter Card ID
+            </Link>
+
             <Link
               href="/login"
               className="group relative block w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-center font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"

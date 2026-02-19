@@ -1,6 +1,8 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 type ViewStatus = "checking" | "unclaimed" | "claimed" | "notfound" | "error";
 
@@ -141,11 +143,49 @@ export default function CardPage({
 }: {
   params: Promise<{ cardId: string }>;
 }) {
+  const router = useRouter();
   const { cardId } = use(params);
 
   const [status, setStatus] = useState<ViewStatus>("checking");
   const [message, setMessage] = useState("");
   const [card, setCard] = useState<PublicCardPayload | null>(null);
+
+  // ✅ NEW: Track session so we can show Logout button
+  const [signedIn, setSignedIn] = useState(false);
+
+  // ✅ NEW: remember last card page so mobile can “resume”
+  useEffect(() => {
+    if (!cardId) return;
+    try {
+      localStorage.setItem("via:lastCardUrl", `/c/${cardId}`);
+    } catch {}
+  }, [cardId]);
+
+  // ✅ NEW: keep signedIn state updated
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!cancelled) setSignedIn(!!data.session);
+    })();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_evt, session) => {
+      setSignedIn(!!session);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  async function logout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -237,10 +277,20 @@ export default function CardPage({
             <div className="pointer-events-none absolute inset-0 rounded-[28px] border border-white/5" />
             <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
 
-            <div className="mb-10 flex justify-center">
+            <div className="mb-10 flex items-center justify-center relative">
               <div className="select-none text-[38px] font-light tracking-[0.55em] text-transparent bg-clip-text bg-gradient-to-b from-white to-white/55 drop-shadow-[0_0_18px_rgba(255,255,255,0.08)]">
                 VIA
               </div>
+
+              {/* ✅ NEW: Logout button (only if signed in) */}
+              {signedIn && (
+                <button
+                  onClick={logout}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
+                >
+                  Logout
+                </button>
+              )}
             </div>
 
             {status === "checking" && (
@@ -288,8 +338,6 @@ export default function CardPage({
                   {!card && (
                     <p className="mt-6 text-sm text-white/55">Loading…</p>
                   )}
-
-                  
                 </div>
 
                 <div className="mt-10 space-y-4">
