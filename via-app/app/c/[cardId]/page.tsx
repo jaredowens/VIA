@@ -624,6 +624,29 @@ export default function CardPage({
                   )}
                 </div>
 
+                {/* ✅ Subtle owner link (only when not owner) */}
+{!ownerCheck.loading && !ownerCheck.isOwner && (
+  <div className="pt-2 text-center">
+    {ownerCheck.signedIn ? (
+      <p className="text-xs text-white/35">
+        Signed in, but you’re not the owner of this card.
+      </p>
+    ) : (
+      <button
+        onClick={() =>
+          (window.location.href = `/login?returnTo=${encodeURIComponent(
+            `/setup/${cardId}`
+          )}`)
+        }
+        className="text-xs text-white/40 hover:text-white/65 transition"
+      >
+        Owner? Sign in to edit
+      </button>
+    )}
+  </div>
+)}
+
+
                 {!!message && (
                   <p className="mt-6 text-center text-sm text-white/55">
                     {message}
