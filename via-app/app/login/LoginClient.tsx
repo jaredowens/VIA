@@ -18,7 +18,21 @@ export default function LoginClient({
 }: {
   returnTo?: string;
 }) {
-  const returnTo = returnToProp || "/enter";
+  const [returnTo, setReturnTo] = useState(returnToProp || "/enter");
+
+useEffect(() => {
+  // Always prefer the real URL query at runtime (works even if page was statically optimized)
+  try {
+    const sp = new URLSearchParams(window.location.search);
+    const rt = sp.get("returnTo");
+    if (rt) setReturnTo(rt);
+    else if (returnToProp) setReturnTo(returnToProp);
+    else setReturnTo("/enter");
+  } catch {
+    setReturnTo(returnToProp || "/enter");
+  }
+}, [returnToProp]);
+
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
