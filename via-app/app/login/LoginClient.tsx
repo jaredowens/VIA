@@ -1,46 +1,44 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 const RETURN_KEY = "via:returnTo";
 const RETURN_COOKIE = "via_returnTo";
 
 function setReturnCookie(value: string) {
-  const maxAge = 60 * 10; // 10 minutes
+  const maxAge = 60 * 10;
   document.cookie = `${RETURN_COOKIE}=${encodeURIComponent(
     value
   )}; Max-Age=${maxAge}; Path=/; SameSite=Lax`;
 }
 
-export default function LoginClient() {
-  const searchParams = useSearchParams();
-  const returnTo = useMemo(
-    () => searchParams.get("returnTo") || "/enter",
-    [searchParams]
-  );
+export default function LoginClient({
+  returnTo: returnToProp,
+}: {
+  returnTo?: string;
+}) {
+  const returnTo = returnToProp || "/enter";
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [cooldown, setCooldown] = useState(0);
 
-  // If already logged in → go to returnTo
-useEffect(() => {
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (session) {
-      window.location.href = returnTo;
-    }
-  });
+  // Redirect instantly when session exists
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        window.location.href = returnTo;
+      }
+    });
 
-  return () => {
-    subscription.unsubscribe();
-  };
-}, [returnTo]);
-
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [returnTo]);
 
   async function signInWithGoogle() {
     const redirectTo =
@@ -129,7 +127,6 @@ useEffect(() => {
             </p>
           </div>
 
-          {/* GOOGLE BUTTON */}
           <button
             type="button"
             onClick={signInWithGoogle}
@@ -138,7 +135,6 @@ useEffect(() => {
             Continue with Google
           </button>
 
-          {/* DIVIDER */}
           <div className="flex items-center gap-4 mb-6">
             <div className="h-px flex-1 bg-white/10" />
             <span className="text-xs text-white/40 tracking-wider">
@@ -147,7 +143,6 @@ useEffect(() => {
             <div className="h-px flex-1 bg-white/10" />
           </div>
 
-          {/* MAGIC LINK FORM */}
           <form onSubmit={sendLink} className="space-y-5">
             <div>
               <label className="block text-xs tracking-wider text-white/60 mb-2">
@@ -172,7 +167,7 @@ useEffect(() => {
             <button
               type="submit"
               disabled={loading || cooldown > 0}
-              className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7 disabled:opacity-60 disabled:hover:translate-y-0"
+              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:border-white/20 hover:bg-white/7 disabled:opacity-60"
             >
               {loading
                 ? "Sending…"
