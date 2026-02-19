@@ -1,19 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PROTECTED_PREFIXES = ["/setup", "/create"];
+const PROTECTED_PREFIXES = ["/setup", "/create", "/claim"];
 
 export default async function proxy(req: NextRequest) {
   const { pathname, origin, search } = req.nextUrl;
 
-  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
-  if (!isProtected) return NextResponse.next();
+  const isProtected = PROTECTED_PREFIXES.some((p) =>
+    pathname.startsWith(p)
+  );
+
+  if (!isProtected) {
+    return NextResponse.next();
+  }
+
+  // ✅ DEV BYPASS (requires BOTH env var AND ?dev=1)
+  const dev =
+    req.nextUrl.searchParams.get("dev") === "1";
 
   const devBypass =
-  process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "1" ||
-  req.nextUrl.searchParams.get("dev") === "1";
+    process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "1" && dev;
 
-if (devBypass) return NextResponse.next();
+  if (devBypass) {
+    return NextResponse.next();
+  }
 
   const res = NextResponse.next();
 
@@ -40,8 +50,10 @@ if (devBypass) return NextResponse.next();
 
   if (!user) {
     const loginUrl = new URL("/login", origin);
-    // keep the FULL requested URL so you go back exactly where you wanted
-    loginUrl.searchParams.set("returnTo", `${pathname}${search || ""}`);
+    loginUrl.searchParams.set(
+      "returnTo",
+      `${pathname}${search || ""}`
+    );
     return NextResponse.redirect(loginUrl);
   }
 
@@ -49,5 +61,5 @@ if (devBypass) return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/setup/:path*", "/create/:path*"],
+  matcher: ["/setup/:path*", "/create/:path*", "/claim/:path*"],
 };

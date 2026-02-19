@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// Helper to extract Bearer token
 function getBearerToken(req: Request) {
   const auth = req.headers.get("authorization") || "";
   const match = auth.match(/^Bearer\s+(.+)$/i);
@@ -9,13 +10,32 @@ function getBearerToken(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    // ✅ DEV BYPASS (must be inside POST)
+    const dev =
+      new URL(req.url).searchParams.get("dev") === "1";
+
+    const devBypass =
+      process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "1" && dev;
+
     const { cardId } = (await req.json()) as { cardId?: string };
-    if (!cardId) return new NextResponse("Missing cardId", { status: 400 });
+    if (!cardId) {
+      return new NextResponse("Missing cardId", { status: 400 });
+    }
 
+    // 🚀 If dev bypass → skip auth entirely
+    if (devBypass) {
+      return NextResponse.json({
+        ok: true,
+        devBypass: true,
+      });
+    }
+
+    // 🔐 Normal auth flow
     const token = getBearerToken(req);
-    if (!token) return new NextResponse("Unauthorized", { status: 401 });
+    if (!token) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
 
-    // Create a client that acts as the user (RLS will apply)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -28,13 +48,13 @@ export async function POST(req: Request) {
       }
     );
 
-    // Validate token → get user
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    const { data: userData, error: userErr } =
+      await supabase.auth.getUser();
+
     if (userErr || !userData.user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Atomic claim: only succeeds if owner_user_id is still null
     const { data, error } = await supabase
       .from("cards")
       .update({
@@ -46,23 +66,29 @@ export async function POST(req: Request) {
       .select("id, owner_user_id")
       .maybeSingle();
 
-    if (error) return new NextResponse(error.message, { status: 400 });
+    if (error) {
+      return new NextResponse(error.message, { status: 400 });
+    }
 
-    // If no row updated, it was already claimed or invalid id
     if (!data) {
-      // Decide if it's missing vs already claimed
       const { data: exists } = await supabase
         .from("cards")
         .select("id, owner_user_id")
         .eq("id", cardId)
         .maybeSingle();
 
-      if (!exists) return new NextResponse("Card not found", { status: 404 });
+      if (!exists) {
+        return new NextResponse("Card not found", { status: 404 });
+      }
+
       return new NextResponse("Already claimed", { status: 409 });
     }
 
     return NextResponse.json({ ok: true, card: data });
   } catch (e: any) {
-    return new NextResponse(e?.message ?? "Unknown error", { status: 500 });
+    return new NextResponse(
+      e?.message ?? "Unknown error",
+      { status: 500 }
+    );
   }
 }
