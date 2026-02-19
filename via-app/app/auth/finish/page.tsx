@@ -12,7 +12,7 @@ function getCookie(name: string) {
 
 export default function FinishAuthPage() {
   useEffect(() => {
-    let dest = "/create"; // ✅ fallback is now /create instead of home
+    let dest = "/"; // ✅ unprotected fallback
 
     try {
       const ls = localStorage.getItem(RETURN_KEY);
@@ -26,7 +26,7 @@ export default function FinishAuthPage() {
       document.cookie = `${RETURN_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
     } catch {}
 
-    window.location.replace(dest || "/create");
+    window.location.replace(dest || "/");
   }, []);
 
   return (
