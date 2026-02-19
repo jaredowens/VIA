@@ -8,8 +8,7 @@ const RETURN_KEY = "via:returnTo";
 const RETURN_COOKIE = "via_returnTo";
 
 function setReturnCookie(value: string) {
-  // 10 minutes
-  const maxAge = 60 * 10;
+  const maxAge = 60 * 10; // 10 minutes
   document.cookie = `${RETURN_COOKIE}=${encodeURIComponent(
     value
   )}; Max-Age=${maxAge}; Path=/; SameSite=Lax`;
@@ -18,7 +17,7 @@ function setReturnCookie(value: string) {
 export default function LoginClient() {
   const searchParams = useSearchParams();
   const returnTo = useMemo(
-    () => searchParams.get("returnTo") || "/",
+    () => searchParams.get("returnTo") || "/enter",
     [searchParams]
   );
 
@@ -27,16 +26,35 @@ export default function LoginClient() {
   const [msg, setMsg] = useState("");
   const [cooldown, setCooldown] = useState(0);
 
+  // If already logged in → go to returnTo
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       const { data } = await supabase.auth.getSession();
-      if (!cancelled && data.session) window.location.href = returnTo;
+      if (!cancelled && data.session) {
+        window.location.href = returnTo;
+      }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [returnTo]);
+
+  async function signInWithGoogle() {
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback`
+        : undefined;
+
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+      },
+    });
+  }
 
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
@@ -45,15 +63,14 @@ export default function LoginClient() {
     setLoading(true);
     setMsg("");
 
-    // Backup returnTo in BOTH localStorage and a cookie
     try {
       localStorage.setItem(RETURN_KEY, returnTo);
     } catch {}
+
     try {
       setReturnCookie(returnTo);
     } catch {}
 
-    // IMPORTANT: keep redirectTo simple. We’ll recover returnTo in callback via cookie/localStorage.
     const redirectTo =
       typeof window !== "undefined"
         ? `${window.location.origin}/auth/callback`
@@ -108,11 +125,30 @@ export default function LoginClient() {
               Sign in
             </h1>
             <p className="mt-3 text-[12px] tracking-[0.35em] text-white/45">
-              MAGIC LINK (NO PASSWORD)
+              GOOGLE OR MAGIC LINK
             </p>
           </div>
 
-          <form onSubmit={sendLink} className="mt-10 space-y-5">
+          {/* GOOGLE BUTTON */}
+          <button
+            type="button"
+            onClick={signInWithGoogle}
+            className="mt-8 mb-6 w-full rounded-2xl bg-white px-4 py-4 font-medium text-black hover:opacity-90 transition"
+          >
+            Continue with Google
+          </button>
+
+          {/* DIVIDER */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs text-white/40 tracking-wider">
+              OR
+            </span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          {/* MAGIC LINK FORM */}
+          <form onSubmit={sendLink} className="space-y-5">
             <div>
               <label className="block text-xs tracking-wider text-white/60 mb-2">
                 EMAIL
@@ -128,7 +164,9 @@ export default function LoginClient() {
             </div>
 
             {!!msg && (
-              <p className="text-center text-sm text-white/70">{msg}</p>
+              <p className="text-center text-sm text-white/70">
+                {msg}
+              </p>
             )}
 
             <button
