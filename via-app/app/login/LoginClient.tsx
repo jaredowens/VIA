@@ -54,19 +54,27 @@ useEffect(() => {
     };
   }, [returnTo]);
 
-  async function signInWithGoogle() {
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback`
-        : undefined;
+ async function signInWithGoogle() {
+  try {
+    // store returnTo so callback can always recover it
+    document.cookie = `via_returnTo=${encodeURIComponent(
+      returnTo
+    )}; Max-Age=${60 * 10}; Path=/; SameSite=Lax`;
+  } catch {}
 
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo,
-      },
-    });
-  }
+  const redirectTo =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(
+          returnTo
+        )}`
+      : undefined;
+
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo },
+  });
+}
+
 
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
@@ -84,9 +92,12 @@ useEffect(() => {
     } catch {}
 
     const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback`
-        : undefined;
+  typeof window !== "undefined"
+    ? `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(
+        returnTo
+      )}`
+    : undefined;
+
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
