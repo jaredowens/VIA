@@ -33,7 +33,7 @@ function prettyLabel(key: string) {
     venmo: "Venmo",
     cashapp: "Cash App",
     email: "Email (Zelle)",
-    phone: "Phone Pay (Apple Pay, Samsung Pay, etc.)",
+    phone: "Phone Pay",
     paypal: "PayPal",
   };
 
@@ -539,11 +539,12 @@ export default function CardPage({
                 </div>
 
                 <div className="mt-10 space-y-4">
-                  {card && paymentItems.length === 0 && (
-                    <p className="text-center text-sm text-white/55">
-                      No payment methods added yet.
-                    </p>
-                  )}
+  {paymentItems.length > 0 && (
+    <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
+      PAYMENT METHODS
+    </div>
+  )}
+
 
                   {paymentItems.map((it, idx) => {
                     const { href, fallback } = buildLink(
