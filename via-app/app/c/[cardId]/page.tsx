@@ -15,7 +15,10 @@ type PublicCardPayload = {
   payments: any;
 };
 
+type PaymentType = "venmo" | "cashapp" | "email" | "phone" | "paypal" | "other";
+
 type PaymentLinkItem = {
+  key?: string; // preserve object key when possible
   label: string;
   value: string;
   url?: string;
@@ -26,14 +29,14 @@ function prettyLabel(key: string) {
     venmo: "Venmo",
     cashapp: "Cash App",
     cash_app: "Cash App",
+    email: "Email",
+    phone: "Phone",
     paypal: "PayPal",
     zelle: "Zelle",
     applepay: "Apple Pay",
     apple_pay: "Apple Pay",
     applepay_phone: "Apple Pay",
     apple_pay_phone: "Apple Pay",
-    email: "Email",
-    phone: "Phone",
   };
 
   return (
@@ -58,8 +61,11 @@ function normalizePayments(payments: any): PaymentLinkItem[] {
   if (typeof payments === "object") {
     return Object.entries(payments)
       .map(([k, v]) => {
-        if (typeof v === "string") return { label: prettyLabel(k), value: v };
+        if (typeof v === "string") {
+          return { key: k, label: prettyLabel(k), value: v };
+        }
         return {
+          key: k,
           label: prettyLabel(k),
           value: String((v as any)?.value ?? ""),
           url: (v as any)?.url ? String((v as any).url) : undefined,
@@ -73,6 +79,39 @@ function normalizePayments(payments: any): PaymentLinkItem[] {
 
 function digitsOnlyPhone(value: string) {
   return value.replace(/[^\d+]/g, "");
+}
+
+function detectType(it: PaymentLinkItem): PaymentType {
+  const k = (it.key || "").toLowerCase();
+  const l = (it.label || "").toLowerCase();
+
+  if (k.includes("venmo") || l.includes("venmo")) return "venmo";
+  if (k.includes("cash") || l.includes("cash")) return "cashapp";
+  if (k === "email" || l.includes("email")) return "email";
+  if (k === "phone" || l.includes("phone")) return "phone";
+  if (k.includes("paypal") || l.includes("paypal")) return "paypal";
+
+  return "other";
+}
+
+function sortPayments(items: PaymentLinkItem[]) {
+  const priority: Record<PaymentType, number> = {
+    venmo: 0,
+    cashapp: 1,
+    email: 2,
+    phone: 3,
+    paypal: 4,
+    other: 99,
+  };
+
+  return [...items].sort((a, b) => {
+    const ta = detectType(a);
+    const tb = detectType(b);
+    const pa = priority[ta];
+    const pb = priority[tb];
+    if (pa !== pb) return pa - pb;
+    return (a.label || "").localeCompare(b.label || "");
+  });
 }
 
 function buildLink(
@@ -102,11 +141,6 @@ function buildLink(
     return { href: `https://cash.app/${encodeURIComponent(tag)}` };
   }
 
-  if (lower.includes("paypal")) {
-    const user = v.replace(/^@/, "");
-    return { href: `https://www.paypal.me/${encodeURIComponent(user)}` };
-  }
-
   if (lower.includes("email")) {
     return { href: `mailto:${v}` };
   }
@@ -117,6 +151,12 @@ function buildLink(
     return { href: `tel:${phone}` };
   }
 
+  if (lower.includes("paypal")) {
+    const user = v.replace(/^@/, "");
+    return { href: `https://www.paypal.me/${encodeURIComponent(user)}` };
+  }
+
+  // keep legacy types working if they exist
   if (lower.includes("apple pay")) {
     if (v.includes("@") && !v.startsWith("@")) return { href: `mailto:${v}` };
     const phone = digitsOnlyPhone(v);
@@ -151,6 +191,102 @@ async function openWithFallback(href: string, fallback?: string) {
   window.location.href = href;
 }
 
+function Icon({ type }: { type: PaymentType }) {
+  const cls = "h-5 w-5 text-white/80";
+
+  if (type === "venmo") {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M7.2 6.7c1.6-.3 2.8 0 3.6.9.9 1 .9 2.6.1 4.8l-2.5 6.8h4.1l2.4-6.1c1.6-4.1 1.1-7.1-1.4-8.9-1.6-1.2-3.8-1.5-6.6-.9l.3 3.4Z"
+          fill="currentColor"
+          opacity="0.9"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "cashapp") {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M7.5 6.5h9A2 2 0 0 1 18.5 8.5v7A2 2 0 0 1 16.5 17.5h-9A2 2 0 0 1 5.5 15.5v-7A2 2 0 0 1 7.5 6.5Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          opacity="0.9"
+        />
+        <path
+          d="M13.9 9.2c-.3-.5-.9-.8-1.8-.8-1.3 0-2.1.6-2.1 1.6 0 .8.5 1.2 1.6 1.4l.8.1c.7.1.9.3.9.6 0 .4-.4.7-1.1.7-.7 0-1.1-.2-1.4-.7l-1.1.7c.4.8 1.3 1.2 2.5 1.2 1.5 0 2.4-.7 2.4-1.7 0-.9-.6-1.3-1.7-1.5l-.8-.1c-.6-.1-.8-.2-.8-.6 0-.4.3-.6 1-.6.6 0 1 .2 1.2.5l1.4-.8Z"
+          fill="currentColor"
+          opacity="0.9"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "email") {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M6.5 8.5h11A2 2 0 0 1 19.5 10.5v6A2 2 0 0 1 17.5 18.5h-11A2 2 0 0 1 4.5 16.5v-6A2 2 0 0 1 6.5 8.5Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          opacity="0.9"
+        />
+        <path
+          d="M5.5 10l6.2 4.2c.2.1.5.1.6 0L18.5 10"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          opacity="0.9"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "phone") {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M8.3 6.8c.4-1 1.4-1.6 2.5-1.3l1 .3c.7.2 1.2.8 1.2 1.5v1.5c0 .6-.3 1.1-.9 1.4l-.7.3c.5 1.2 1.4 2.3 2.6 3.1l.4-.7c.3-.6.8-.9 1.4-.9h1.6c.7 0 1.3.5 1.5 1.2l.3 1c.3 1.1-.3 2.1-1.3 2.5-1.2.5-2.6.7-4 .3-4.2-1.1-7.6-4.5-8.7-8.7-.4-1.4-.2-2.8.3-4Z"
+          fill="currentColor"
+          opacity="0.9"
+        />
+      </svg>
+    );
+  }
+
+  if (type === "paypal") {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M8.2 18.5H6.4a.8.8 0 0 1-.8-1l1.6-10A2 2 0 0 1 9.2 5.8h5.1c3 0 4.6 1.5 4.2 4.3-.3 2.3-1.8 3.7-4.2 3.7h-1.3a1.7 1.7 0 0 0-1.7 1.4l-.4 2.1a1.6 1.6 0 0 1-1.7 1.2Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          opacity="0.9"
+        />
+        <path
+          d="M10.2 18.5l.4-2.1a2.9 2.9 0 0 1 2.8-2.3h1.2c2.4 0 4-1.4 4.3-3.7"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          opacity="0.35"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 6.8v10.4M6.8 12h10.4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        opacity="0.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export default function CardPage({
   params,
 }: {
@@ -163,14 +299,12 @@ export default function CardPage({
   const [message, setMessage] = useState("");
   const [card, setCard] = useState<PublicCardPayload | null>(null);
 
-  // ✅ NEW: owner check (controls Logout + Setup/Edit)
   const [ownerCheck, setOwnerCheck] = useState<{
     loading: boolean;
     signedIn: boolean;
     isOwner: boolean;
   }>({ loading: true, signedIn: false, isOwner: false });
 
-  // ✅ remember last card page so mobile can “resume”
   useEffect(() => {
     if (!cardId) return;
     try {
@@ -201,7 +335,6 @@ export default function CardPage({
     }
   }
 
-  // ✅ keep owner status updated (works on login/logout too)
   useEffect(() => {
     refreshOwner();
 
@@ -289,10 +422,10 @@ export default function CardPage({
     };
   }, [cardId]);
 
-  const paymentItems = useMemo(
-    () => normalizePayments(card?.payments),
-    [card?.payments]
-  );
+  const paymentItems = useMemo(() => {
+    const items = normalizePayments(card?.payments);
+    return sortPayments(items);
+  }, [card?.payments]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
@@ -315,7 +448,6 @@ export default function CardPage({
                 VIA
               </div>
 
-              {/* ✅ Logout only for OWNER */}
               {ownerCheck.isOwner && (
                 <button
                   onClick={logout}
@@ -355,9 +487,7 @@ export default function CardPage({
                       {card.bio}
                     </p>
                   ) : (
-                    <p className="mt-3 text-sm text-white/40">
-                      No bio added yet.
-                    </p>
+                    <p className="mt-3 text-sm text-white/40"> </p>
                   )}
 
                   {card?.payLabel?.trim() ? (
@@ -387,10 +517,11 @@ export default function CardPage({
                       it.url
                     );
                     const text = it.value || it.url || "";
+                    const type = detectType(it);
 
                     return (
                       <button
-                        key={`${it.label}-${idx}`}
+                        key={`${it.key ?? it.label}-${idx}`}
                         onClick={async () => {
                           if (href) {
                             await openWithFallback(href, fallback);
@@ -404,8 +535,14 @@ export default function CardPage({
                           <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
                         </span>
 
-                        <div className="flex items-center justify-between">
-                          <span>{it.label}</span>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                              <Icon type={type} />
+                            </div>
+                            <span>{it.label}</span>
+                          </div>
+
                           <span className="text-white/60 text-sm">
                             {href ? "Open" : "Copy"}
                           </span>
@@ -418,7 +555,6 @@ export default function CardPage({
                     );
                   })}
 
-                  {/* ✅ Setup/Edit only for OWNER */}
                   {ownerCheck.isOwner && (
                     <button
                       onClick={() => (window.location.href = `/setup/${cardId}`)}

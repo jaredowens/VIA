@@ -8,6 +8,7 @@ type Payments = {
   cashapp?: string; // no $
   email?: string;
   phone?: string;
+  paypal?: string;  // paypal.me username OR full link (we’ll accept either)
 };
 
 type CardRow = {
@@ -36,6 +37,10 @@ function normalizePhone(input: string) {
   return input.trim();
 }
 
+function normalizePaypal(input: string) {
+  return input.trim();
+}
+
 export default function SetupPage({
   params,
 }: {
@@ -49,7 +54,6 @@ export default function SetupPage({
 
   const [card, setCard] = useState<CardRow | null>(null);
 
-  // basics
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
 
@@ -57,11 +61,11 @@ export default function SetupPage({
   const [photoUrl, setPhotoUrl] = useState("");
   const [payLabel, setPayLabel] = useState("");
 
-  // payments
   const [venmo, setVenmo] = useState("");
   const [cashapp, setCashapp] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [paypal, setPaypal] = useState("");
 
   const returnToCard = useMemo(() => `/c/${cardId}`, [cardId]);
 
@@ -72,7 +76,6 @@ export default function SetupPage({
       setLoading(true);
       setMsg("");
 
-      // Must be logged in to edit/setup
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) {
         window.location.href = `/login?returnTo=${encodeURIComponent(
@@ -81,7 +84,6 @@ export default function SetupPage({
         return;
       }
 
-      // Load card
       const { data, error } = await supabase
         .from("cards")
         .select(
@@ -104,13 +106,11 @@ export default function SetupPage({
         return;
       }
 
-      // If not claimed, force claim flow
       if (!data.owner_user_id) {
         window.location.href = `/claim/${cardId}`;
         return;
       }
 
-      // Ensure this user is the owner (RLS will also enforce update)
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
 
@@ -121,7 +121,6 @@ export default function SetupPage({
 
       setCard(data as CardRow);
 
-      // Split display_name -> first/last
       const dn = (data.display_name ?? "").trim();
       if (dn) {
         const parts = dn.split(/\s+/);
@@ -141,6 +140,7 @@ export default function SetupPage({
       setCashapp(p.cashapp ?? "");
       setEmail(p.email ?? "");
       setPhone(p.phone ?? "");
+      setPaypal(p.paypal ?? "");
 
       setLoading(false);
     }
@@ -170,9 +170,9 @@ export default function SetupPage({
       cashapp: normalizeCashAppTag(cashapp) || undefined,
       email: normalizeEmail(email) || undefined,
       phone: normalizePhone(phone) || undefined,
+      paypal: normalizePaypal(paypal) || undefined,
     };
 
-    // Remove empty keys
     Object.keys(payments).forEach((k) => {
       const key = k as keyof Payments;
       if (!payments[key]) delete payments[key];
@@ -235,12 +235,12 @@ export default function SetupPage({
                 <p className="text-center text-sm text-red-400">{msg}</p>
               )}
 
-              {/* Basics */}
               <div className="space-y-4">
                 <div className="text-xs tracking-[0.35em] text-white/45">
                   BASICS
                 </div>
 
+                {/* First + Last same bar (two inputs, same row) */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs tracking-wider text-white/60 mb-2">
@@ -249,7 +249,6 @@ export default function SetupPage({
                     <input
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="e.g., Alex"
                       className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                     />
                   </div>
@@ -261,7 +260,6 @@ export default function SetupPage({
                     <input
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      placeholder="e.g., Johnson"
                       className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                     />
                   </div>
@@ -274,7 +272,6 @@ export default function SetupPage({
                   <textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="e.g., Primarily Venmo, others welcome"
                     className="w-full resize-none rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
@@ -286,13 +283,11 @@ export default function SetupPage({
                   <input
                     value={payLabel}
                     onChange={(e) => setPayLabel(e.target.value)}
-                    placeholder="e.g., Haircut, Tip, Deposit"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
               </div>
 
-              {/* Payments */}
               <div className="space-y-4">
                 <div className="text-xs tracking-[0.35em] text-white/45">
                   PAYMENTS
@@ -305,7 +300,6 @@ export default function SetupPage({
                   <input
                     value={venmo}
                     onChange={(e) => setVenmo(e.target.value)}
-                    placeholder="alexjohnson"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
@@ -317,7 +311,6 @@ export default function SetupPage({
                   <input
                     value={cashapp}
                     onChange={(e) => setCashapp(e.target.value)}
-                    placeholder="alexjohnson"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
@@ -329,7 +322,7 @@ export default function SetupPage({
                   <input
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="alex@example.com"
+                    type="email"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
@@ -341,7 +334,17 @@ export default function SetupPage({
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+1 (555) 555-5555"
+                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs tracking-wider text-white/60 mb-2">
+                    PAYPAL (USERNAME OR LINK)
+                  </label>
+                  <input
+                    value={paypal}
+                    onChange={(e) => setPaypal(e.target.value)}
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
