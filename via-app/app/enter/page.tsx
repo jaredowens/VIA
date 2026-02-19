@@ -2,27 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 
 export default function EnterPage() {
   const [cardId, setCardId] = useState("");
   const router = useRouter();
 
-  async function handleContinue() {
+  function continueToClaim() {
     const id = cardId.trim();
     if (!id) return;
 
-    const returnTo = `/claim/${encodeURIComponent(id)}`;
-
-    const { data } = await supabase.auth.getSession();
-
-    if (data.session) {
-      // Already logged in → go straight to claim
-      router.push(returnTo);
-    } else {
-      // Not logged in → send to login
-      router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-    }
+    // ✅ Always go straight to claim.
+    // Middleware will redirect to /login if needed.
+    router.push(`/claim/${encodeURIComponent(id)}`);
   }
 
   return (
@@ -39,12 +30,12 @@ export default function EnterPage() {
           <input
             value={cardId}
             onChange={(e) => setCardId(e.target.value)}
-            placeholder="ex: 8f3c2a1b-..."
+            placeholder="ex: AB12"
             className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35"
           />
 
           <button
-            onClick={handleContinue}
+            onClick={continueToClaim}
             disabled={!cardId.trim()}
             className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium text-white/90 disabled:opacity-50"
           >
