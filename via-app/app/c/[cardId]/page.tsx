@@ -3,6 +3,8 @@
 import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { Mail, Phone } from "lucide-react";
+import { siVenmo, siPaypal, siCashapp } from "simple-icons/icons";
 
 type ViewStatus = "checking" | "unclaimed" | "claimed" | "notfound" | "error";
 
@@ -18,7 +20,7 @@ type PublicCardPayload = {
 type PaymentType = "venmo" | "cashapp" | "email" | "phone" | "paypal" | "other";
 
 type PaymentLinkItem = {
-  key?: string; // preserve object key when possible
+  key?: string;
   label: string;
   value: string;
   url?: string;
@@ -28,15 +30,9 @@ function prettyLabel(key: string) {
   const map: Record<string, string> = {
     venmo: "Venmo",
     cashapp: "Cash App",
-    cash_app: "Cash App",
-    email: "Email",
-    phone: "Phone",
+    email: "Email (Zelle)",
+    phone: "Phone Pay (Apple Pay, Samsung Pay, etc.)",
     paypal: "PayPal",
-    zelle: "Zelle",
-    applepay: "Apple Pay",
-    apple_pay: "Apple Pay",
-    applepay_phone: "Apple Pay",
-    apple_pay_phone: "Apple Pay",
   };
 
   return (
@@ -156,21 +152,6 @@ function buildLink(
     return { href: `https://www.paypal.me/${encodeURIComponent(user)}` };
   }
 
-  // keep legacy types working if they exist
-  if (lower.includes("apple pay")) {
-    if (v.includes("@") && !v.startsWith("@")) return { href: `mailto:${v}` };
-    const phone = digitsOnlyPhone(v);
-    if (!phone) return { href: "" };
-    return { href: `sms:${phone}` };
-  }
-
-  if (lower.includes("zelle")) {
-    if (v.includes("@") && !v.startsWith("@")) return { href: `mailto:${v}` };
-    const phone = digitsOnlyPhone(v);
-    if (!phone) return { href: "" };
-    return { href: `sms:${phone}` };
-  }
-
   return { href: "" };
 }
 
@@ -191,100 +172,98 @@ async function openWithFallback(href: string, fallback?: string) {
   window.location.href = href;
 }
 
-function Icon({ type }: { type: PaymentType }) {
-  const cls = "h-5 w-5 text-white/80";
-
-  if (type === "venmo") {
-    return (
-      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M7.2 6.7c1.6-.3 2.8 0 3.6.9.9 1 .9 2.6.1 4.8l-2.5 6.8h4.1l2.4-6.1c1.6-4.1 1.1-7.1-1.4-8.9-1.6-1.2-3.8-1.5-6.6-.9l.3 3.4Z"
-          fill="currentColor"
-          opacity="0.9"
-        />
-      </svg>
-    );
-  }
-
-  if (type === "cashapp") {
-    return (
-      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M7.5 6.5h9A2 2 0 0 1 18.5 8.5v7A2 2 0 0 1 16.5 17.5h-9A2 2 0 0 1 5.5 15.5v-7A2 2 0 0 1 7.5 6.5Z"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          opacity="0.9"
-        />
-        <path
-          d="M13.9 9.2c-.3-.5-.9-.8-1.8-.8-1.3 0-2.1.6-2.1 1.6 0 .8.5 1.2 1.6 1.4l.8.1c.7.1.9.3.9.6 0 .4-.4.7-1.1.7-.7 0-1.1-.2-1.4-.7l-1.1.7c.4.8 1.3 1.2 2.5 1.2 1.5 0 2.4-.7 2.4-1.7 0-.9-.6-1.3-1.7-1.5l-.8-.1c-.6-.1-.8-.2-.8-.6 0-.4.3-.6 1-.6.6 0 1 .2 1.2.5l1.4-.8Z"
-          fill="currentColor"
-          opacity="0.9"
-        />
-      </svg>
-    );
-  }
-
-  if (type === "email") {
-    return (
-      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M6.5 8.5h11A2 2 0 0 1 19.5 10.5v6A2 2 0 0 1 17.5 18.5h-11A2 2 0 0 1 4.5 16.5v-6A2 2 0 0 1 6.5 8.5Z"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          opacity="0.9"
-        />
-        <path
-          d="M5.5 10l6.2 4.2c.2.1.5.1.6 0L18.5 10"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          opacity="0.9"
-        />
-      </svg>
-    );
-  }
-
-  if (type === "phone") {
-    return (
-      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M8.3 6.8c.4-1 1.4-1.6 2.5-1.3l1 .3c.7.2 1.2.8 1.2 1.5v1.5c0 .6-.3 1.1-.9 1.4l-.7.3c.5 1.2 1.4 2.3 2.6 3.1l.4-.7c.3-.6.8-.9 1.4-.9h1.6c.7 0 1.3.5 1.5 1.2l.3 1c.3 1.1-.3 2.1-1.3 2.5-1.2.5-2.6.7-4 .3-4.2-1.1-7.6-4.5-8.7-8.7-.4-1.4-.2-2.8.3-4Z"
-          fill="currentColor"
-          opacity="0.9"
-        />
-      </svg>
-    );
-  }
-
-  if (type === "paypal") {
-    return (
-      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M8.2 18.5H6.4a.8.8 0 0 1-.8-1l1.6-10A2 2 0 0 1 9.2 5.8h5.1c3 0 4.6 1.5 4.2 4.3-.3 2.3-1.8 3.7-4.2 3.7h-1.3a1.7 1.7 0 0 0-1.7 1.4l-.4 2.1a1.6 1.6 0 0 1-1.7 1.2Z"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          opacity="0.9"
-        />
-        <path
-          d="M10.2 18.5l.4-2.1a2.9 2.9 0 0 1 2.8-2.3h1.2c2.4 0 4-1.4 4.3-3.7"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          opacity="0.35"
-        />
-      </svg>
-    );
-  }
-
+function BrandSvg({
+  path,
+  viewBox = "0 0 24 24",
+}: {
+  path: string;
+  viewBox?: string;
+}) {
   return (
-    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 6.8v10.4M6.8 12h10.4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        opacity="0.7"
-        strokeLinecap="round"
-      />
+    <svg
+      viewBox={viewBox}
+      className="h-5 w-5"
+      aria-hidden="true"
+      fill="currentColor"
+    >
+      <path d={path} />
     </svg>
   );
+}
+
+function Icon({ type }: { type: PaymentType }) {
+  if (type === "venmo") return <BrandSvg path={siVenmo.path} />;
+  if (type === "cashapp") return <BrandSvg path={siCashapp.path} />;
+  if (type === "paypal") return <BrandSvg path={siPaypal.path} />;
+  if (type === "email") return <Mail className="h-5 w-5" />;
+  if (type === "phone") return <Phone className="h-5 w-5" />;
+  return null;
+}
+
+// ------------------------
+// ✅ Save Contact helpers
+// ------------------------
+function vEscape(v: string) {
+  return (v ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function splitName(full: string) {
+  const t = (full ?? "").trim();
+  if (!t) return { first: "", last: "" };
+  const parts = t.split(/\s+/);
+  const first = parts[0] ?? "";
+  const last = parts.slice(1).join(" ");
+  return { first, last };
+}
+
+function buildVCard(opts: {
+  fullName: string;
+  phone?: string;
+  email?: string;
+  note?: string;
+  url?: string;
+}) {
+  const { first, last } = splitName(opts.fullName);
+
+  const lines: string[] = [];
+  lines.push("BEGIN:VCARD");
+  lines.push("VERSION:3.0");
+  lines.push(`N:${vEscape(last)};${vEscape(first)};;;`);
+  lines.push(`FN:${vEscape(opts.fullName)}`);
+
+  const phone = (opts.phone ?? "").trim();
+  if (phone) lines.push(`TEL;TYPE=CELL:${vEscape(phone)}`);
+
+  const email = (opts.email ?? "").trim();
+  if (email) lines.push(`EMAIL;TYPE=INTERNET:${vEscape(email)}`);
+
+  const url = (opts.url ?? "").trim();
+  if (url) lines.push(`URL:${vEscape(url)}`);
+
+  const note = (opts.note ?? "").trim();
+  if (note) lines.push(`NOTE:${vEscape(note)}`);
+
+  lines.push("END:VCARD");
+  return lines.join("\r\n");
+}
+
+function downloadVCard(filename: string, vcard: string) {
+  const blob = new Blob([vcard], { type: "text/vcard;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export default function CardPage({
@@ -304,6 +283,8 @@ export default function CardPage({
     signedIn: boolean;
     isOwner: boolean;
   }>({ loading: true, signedIn: false, isOwner: false });
+
+  const [savingContact, setSavingContact] = useState(false);
 
   useEffect(() => {
     if (!cardId) return;
@@ -426,6 +407,58 @@ export default function CardPage({
     const items = normalizePayments(card?.payments);
     return sortPayments(items);
   }, [card?.payments]);
+
+  // ✅ For Save Contact (viewer side)
+  const phoneValue = useMemo(() => {
+    const it =
+      paymentItems.find((x) => detectType(x) === "phone") ??
+      paymentItems.find((x) => (x.key || "").toLowerCase() === "phone");
+    return (it?.value ?? "").trim();
+  }, [paymentItems]);
+
+  const emailValue = useMemo(() => {
+    const it =
+      paymentItems.find((x) => detectType(x) === "email") ??
+      paymentItems.find((x) => (x.key || "").toLowerCase() === "email");
+    return (it?.value ?? "").trim();
+  }, [paymentItems]);
+
+  const canSaveContact =
+    status === "claimed" &&
+    !ownerCheck.isOwner &&
+    !!card?.displayName?.trim() &&
+    !!phoneValue;
+
+  async function saveContact() {
+    if (!card?.displayName?.trim() || !phoneValue) return;
+
+    setSavingContact(true);
+    try {
+      const url =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/c/${cardId}`
+          : "";
+
+      const noteParts: string[] = [];
+      if (card?.payLabel?.trim()) noteParts.push(card.payLabel.trim());
+      noteParts.push(`VIA card: ${url}`);
+
+      const vcard = buildVCard({
+        fullName: card.displayName.trim(),
+        phone: phoneValue,
+        email: emailValue || undefined,
+        note: noteParts.join(" • "),
+        url,
+      });
+
+      const safeName = card.displayName.trim().replace(/[^\w\s-]/g, "").trim();
+      const filename = `${safeName || "VIA"}-${cardId}.vcf`;
+
+      downloadVCard(filename, vcard);
+    } finally {
+      setSavingContact(false);
+    }
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
@@ -555,6 +588,26 @@ export default function CardPage({
                     );
                   })}
 
+                  {/* ✅ Viewer-only Save Contact */}
+                  {!ownerCheck.isOwner && (
+                    <button
+                      onClick={saveContact}
+                      disabled={!canSaveContact || savingContact}
+                      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7 disabled:opacity-60 disabled:hover:translate-y-0"
+                    >
+                      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                        <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                      </span>
+                      {savingContact ? "Preparing contact…" : "Save Contact"}
+                      {!phoneValue && (
+                        <div className="mt-1 text-left text-sm text-white/55">
+                          No phone number added yet.
+                        </div>
+                      )}
+                    </button>
+                  )}
+
+                  {/* ✅ Owner-only Setup/Edit */}
                   {ownerCheck.isOwner && (
                     <button
                       onClick={() => (window.location.href = `/setup/${cardId}`)}

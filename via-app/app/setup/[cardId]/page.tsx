@@ -317,7 +317,7 @@ export default function SetupPage({
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    PREFERRED EMAIL
+                    PREFERRED EMAIL (ZELLE)
                   </label>
                   <input
                     value={email}
@@ -329,7 +329,7 @@ export default function SetupPage({
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    PHONE NUMBER
+                    PHONE NUMBER (APPLE PAY, SAMSUNG PAY, ETC.)
                   </label>
                   <input
                     value={phone}
