@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 
 const RETURN_KEY = "via:returnTo";
 const RETURN_COOKIE = "via_returnTo";
+const LAST_CARD_KEY = "via:lastCardUrl";
 
 function setReturnCookie(value: string) {
   const maxAge = 60 * 10;
@@ -13,26 +14,40 @@ function setReturnCookie(value: string) {
   )}; Max-Age=${maxAge}; Path=/; SameSite=Lax`;
 }
 
+function safeInternalPath(value: string | null | undefined) {
+  if (!value) return "";
+  // only allow internal paths
+  return value.startsWith("/") ? value : "";
+}
+
 export default function LoginClient({
   returnTo: returnToProp,
 }: {
   returnTo?: string;
 }) {
-  const [returnTo, setReturnTo] = useState(returnToProp || "/enter");
+  // ✅ default fallback is "/" (NOT /enter)
+  const [returnTo, setReturnTo] = useState("/");
 
-useEffect(() => {
-  // Always prefer the real URL query at runtime (works even if page was statically optimized)
-  try {
-    const sp = new URLSearchParams(window.location.search);
-    const rt = sp.get("returnTo");
-    if (rt) setReturnTo(rt);
-    else if (returnToProp) setReturnTo(returnToProp);
-    else setReturnTo("/enter");
-  } catch {
-    setReturnTo(returnToProp || "/enter");
-  }
-}, [returnToProp]);
+  useEffect(() => {
+    // Always prefer runtime query string, then prop, then last card url, then "/"
+    try {
+      const sp = new URLSearchParams(window.location.search);
 
+      const rtFromQuery = safeInternalPath(sp.get("returnTo"));
+      const rtFromProp = safeInternalPath(returnToProp);
+
+      let rtFromLast = "";
+      try {
+        rtFromLast = safeInternalPath(localStorage.getItem(LAST_CARD_KEY));
+      } catch {}
+
+      const finalRt = rtFromQuery || rtFromProp || rtFromLast || "/";
+      setReturnTo(finalRt);
+    } catch {
+      // fallback if anything is weird
+      setReturnTo(safeInternalPath(returnToProp) || "/");
+    }
+  }, [returnToProp]);
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,27 +69,25 @@ useEffect(() => {
     };
   }, [returnTo]);
 
- async function signInWithGoogle() {
-  try {
-    // store returnTo so callback can always recover it
-    document.cookie = `via_returnTo=${encodeURIComponent(
-      returnTo
-    )}; Max-Age=${60 * 10}; Path=/; SameSite=Lax`;
-  } catch {}
+  async function signInWithGoogle() {
+    try {
+      // store returnTo so callback can always recover it
+      setReturnCookie(returnTo);
+      localStorage.setItem(RETURN_KEY, returnTo);
+    } catch {}
 
-  const redirectTo =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(
-          returnTo
-        )}`
-      : undefined;
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(
+            returnTo
+          )}`
+        : undefined;
 
-  await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo },
-  });
-}
-
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+  }
 
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
@@ -92,12 +105,11 @@ useEffect(() => {
     } catch {}
 
     const redirectTo =
-  typeof window !== "undefined"
-    ? `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(
-        returnTo
-      )}`
-    : undefined;
-
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(
+            returnTo
+          )}`
+        : undefined;
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -162,9 +174,7 @@ useEffect(() => {
 
           <div className="flex items-center gap-4 mb-6">
             <div className="h-px flex-1 bg-white/10" />
-            <span className="text-xs text-white/40 tracking-wider">
-              OR
-            </span>
+            <span className="text-xs text-white/40 tracking-wider">OR</span>
             <div className="h-px flex-1 bg-white/10" />
           </div>
 
@@ -184,9 +194,7 @@ useEffect(() => {
             </div>
 
             {!!msg && (
-              <p className="text-center text-sm text-white/70">
-                {msg}
-              </p>
+              <p className="text-center text-sm text-white/70">{msg}</p>
             )}
 
             <button

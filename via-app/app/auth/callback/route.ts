@@ -22,7 +22,10 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL("/login", url.origin));
   }
 
-  const fallbackDest = "/enter";
+  // ✅ safer fallback than /enter
+  const fallbackDest = "/";
+
+  // We create a redirect response, but we’ll set the final Location after we resolve dest
   const response = NextResponse.redirect(new URL(fallbackDest, url.origin));
 
   const supabase = createServerClient(
