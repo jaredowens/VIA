@@ -26,13 +26,16 @@ function prettyLabel(key: string) {
     venmo: "Venmo",
     cashapp: "Cash App",
     cash_app: "Cash App",
+    paypal: "PayPal",
     zelle: "Zelle",
     applepay: "Apple Pay",
     apple_pay: "Apple Pay",
     applepay_phone: "Apple Pay",
     apple_pay_phone: "Apple Pay",
-    paypal: "PayPal",
+    email: "Email",
+    phone: "Phone",
   };
+
   return (
     map[key.toLowerCase()] ??
     key.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
@@ -104,6 +107,16 @@ function buildLink(
     return { href: `https://www.paypal.me/${encodeURIComponent(user)}` };
   }
 
+  if (lower.includes("email")) {
+    return { href: `mailto:${v}` };
+  }
+
+  if (lower.includes("phone")) {
+    const phone = digitsOnlyPhone(v);
+    if (!phone) return { href: "" };
+    return { href: `tel:${phone}` };
+  }
+
   if (lower.includes("apple pay")) {
     if (v.includes("@") && !v.startsWith("@")) return { href: `mailto:${v}` };
     const phone = digitsOnlyPhone(v);
@@ -150,10 +163,14 @@ export default function CardPage({
   const [message, setMessage] = useState("");
   const [card, setCard] = useState<PublicCardPayload | null>(null);
 
-  // ✅ NEW: Track session so we can show Logout button
-  const [signedIn, setSignedIn] = useState(false);
+  // ✅ NEW: owner check (controls Logout + Setup/Edit)
+  const [ownerCheck, setOwnerCheck] = useState<{
+    loading: boolean;
+    signedIn: boolean;
+    isOwner: boolean;
+  }>({ loading: true, signedIn: false, isOwner: false });
 
-  // ✅ NEW: remember last card page so mobile can “resume”
+  // ✅ remember last card page so mobile can “resume”
   useEffect(() => {
     if (!cardId) return;
     try {
@@ -161,26 +178,42 @@ export default function CardPage({
     } catch {}
   }, [cardId]);
 
-  // ✅ NEW: keep signedIn state updated
-  useEffect(() => {
-    let cancelled = false;
+  async function refreshOwner() {
+    if (!cardId) return;
+    try {
+      setOwnerCheck((p) => ({ ...p, loading: true }));
+      const res = await fetch(
+        `/api/card-is-owner?cardId=${encodeURIComponent(cardId)}`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) {
+        setOwnerCheck({ loading: false, signedIn: false, isOwner: false });
+        return;
+      }
+      const j = await res.json();
+      setOwnerCheck({
+        loading: false,
+        signedIn: !!j.signedIn,
+        isOwner: !!j.isOwner,
+      });
+    } catch {
+      setOwnerCheck({ loading: false, signedIn: false, isOwner: false });
+    }
+  }
 
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!cancelled) setSignedIn(!!data.session);
-    })();
+  // ✅ keep owner status updated (works on login/logout too)
+  useEffect(() => {
+    refreshOwner();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_evt, session) => {
-      setSignedIn(!!session);
+    } = supabase.auth.onAuthStateChange(() => {
+      refreshOwner();
     });
 
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, []);
+    return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardId]);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -282,8 +315,8 @@ export default function CardPage({
                 VIA
               </div>
 
-              {/* ✅ NEW: Logout button (only if signed in) */}
-              {signedIn && (
+              {/* ✅ Logout only for OWNER */}
+              {ownerCheck.isOwner && (
                 <button
                   onClick={logout}
                   className="absolute right-0 top-1/2 -translate-y-1/2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
@@ -385,15 +418,18 @@ export default function CardPage({
                     );
                   })}
 
-                  <button
-                    onClick={() => (window.location.href = `/setup/${cardId}`)}
-                    className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-                  >
-                    <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                      <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
-                    </span>
-                    Setup / Edit
-                  </button>
+                  {/* ✅ Setup/Edit only for OWNER */}
+                  {ownerCheck.isOwner && (
+                    <button
+                      onClick={() => (window.location.href = `/setup/${cardId}`)}
+                      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+                    >
+                      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                        <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                      </span>
+                      Setup / Edit
+                    </button>
+                  )}
                 </div>
 
                 {!!message && (

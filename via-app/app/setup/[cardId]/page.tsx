@@ -4,11 +4,10 @@ import { use, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Payments = {
-  venmo?: string;
-  cashapp?: string;
-  paypal?: string;
-  zelle?: string;
-  applepay_phone?: string;
+  venmo?: string;   // no @
+  cashapp?: string; // no $
+  email?: string;
+  phone?: string;
 };
 
 type CardRow = {
@@ -21,20 +20,15 @@ type CardRow = {
   payments_json: Payments | null;
 };
 
-function normalizeCashApp(input: string) {
-  const v = input.trim();
-  if (!v) return "";
-  return v.startsWith("$") ? v : `$${v}`;
+function normalizeVenmoHandle(input: string) {
+  return input.trim().replace(/^@/, "");
 }
 
-function normalizeVenmo(input: string) {
-  const v = input.trim();
-  if (!v) return "";
-  if (v.startsWith("http://") || v.startsWith("https://")) return v;
-  return v.replace(/^@/, "");
+function normalizeCashAppTag(input: string) {
+  return input.trim().replace(/^\$/, "");
 }
 
-function normalizePaypal(input: string) {
+function normalizeEmail(input: string) {
   return input.trim();
 }
 
@@ -55,17 +49,19 @@ export default function SetupPage({
 
   const [card, setCard] = useState<CardRow | null>(null);
 
-  // form state
-  const [displayName, setDisplayName] = useState("");
+  // basics
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
   const [bio, setBio] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [payLabel, setPayLabel] = useState("");
 
+  // payments
   const [venmo, setVenmo] = useState("");
   const [cashapp, setCashapp] = useState("");
-  const [paypal, setPaypal] = useState("");
-  const [zelle, setZelle] = useState("");
-  const [applePhone, setApplePhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
 
   const returnToCard = useMemo(() => `/c/${cardId}`, [cardId]);
 
@@ -125,8 +121,17 @@ export default function SetupPage({
 
       setCard(data as CardRow);
 
-      // hydrate form values
-      setDisplayName(data.display_name ?? "");
+      // Split display_name -> first/last
+      const dn = (data.display_name ?? "").trim();
+      if (dn) {
+        const parts = dn.split(/\s+/);
+        setFirstName(parts[0] ?? "");
+        setLastName(parts.slice(1).join(" "));
+      } else {
+        setFirstName("");
+        setLastName("");
+      }
+
       setBio((data as any).bio ?? "");
       setPhotoUrl(data.photo_url ?? "");
       setPayLabel(data.pay_label ?? "");
@@ -134,9 +139,8 @@ export default function SetupPage({
       const p = (data.payments_json ?? {}) as Payments;
       setVenmo(p.venmo ?? "");
       setCashapp(p.cashapp ?? "");
-      setPaypal(p.paypal ?? "");
-      setZelle(p.zelle ?? "");
-      setApplePhone(p.applepay_phone ?? "");
+      setEmail(p.email ?? "");
+      setPhone(p.phone ?? "");
 
       setLoading(false);
     }
@@ -149,8 +153,12 @@ export default function SetupPage({
   }, [cardId, returnToCard]);
 
   async function save() {
-    if (!displayName.trim()) {
-      setMsg("Display name is required.");
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    const computedDisplay = `${fn} ${ln}`.trim();
+
+    if (!fn) {
+      setMsg("Preferred first name is required.");
       return;
     }
 
@@ -158,11 +166,10 @@ export default function SetupPage({
     setMsg("");
 
     const payments: Payments = {
-      venmo: normalizeVenmo(venmo) || undefined,
-      cashapp: normalizeCashApp(cashapp) || undefined,
-      paypal: normalizePaypal(paypal) || undefined,
-      zelle: zelle.trim() || undefined,
-      applepay_phone: normalizePhone(applePhone) || undefined,
+      venmo: normalizeVenmoHandle(venmo) || undefined,
+      cashapp: normalizeCashAppTag(cashapp) || undefined,
+      email: normalizeEmail(email) || undefined,
+      phone: normalizePhone(phone) || undefined,
     };
 
     // Remove empty keys
@@ -174,7 +181,7 @@ export default function SetupPage({
     const { error } = await supabase
       .from("cards")
       .update({
-        display_name: displayName.trim(),
+        display_name: computedDisplay,
         bio: bio.trim() || null,
         photo_url: photoUrl.trim() || null,
         pay_label: payLabel.trim() || null,
@@ -193,7 +200,6 @@ export default function SetupPage({
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
-      {/* Background */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-[90px]" />
         <div className="absolute top-1/3 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/6 blur-[110px]" />
@@ -203,7 +209,6 @@ export default function SetupPage({
 
       <div className="relative flex min-h-screen items-center justify-center px-6 py-10">
         <div className="w-full max-w-[560px] rounded-[28px] border border-white/10 bg-[#121214]/80 p-10 shadow-[0_30px_120px_rgba(0,0,0,0.75)] backdrop-blur-xl">
-          {/* Logo */}
           <div className="mb-10 flex justify-center">
             <div className="select-none text-[38px] font-light tracking-[0.55em] text-transparent bg-clip-text bg-gradient-to-b from-white to-white/55">
               VIA
@@ -236,16 +241,30 @@ export default function SetupPage({
                   BASICS
                 </div>
 
-                <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    DISPLAY NAME
-                  </label>
-                  <input
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g., Alex Johnson"
-                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                  />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs tracking-wider text-white/60 mb-2">
+                      PREFERRED FIRST NAME
+                    </label>
+                    <input
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="e.g., Alex"
+                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs tracking-wider text-white/60 mb-2">
+                      PREFERRED LAST NAME
+                    </label>
+                    <input
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="e.g., Johnson"
+                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -259,8 +278,6 @@ export default function SetupPage({
                     className="w-full resize-none rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
-
-                
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
@@ -283,65 +300,50 @@ export default function SetupPage({
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    VENMO (USERNAME OR LINK)
+                    VENMO USERNAME (NO @)
                   </label>
                   <input
                     value={venmo}
                     onChange={(e) => setVenmo(e.target.value)}
-                    placeholder="alexjohnson or https://venmo.com/alexjohnson"
+                    placeholder="alexjohnson"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    CASH APP (CASHTAG)
+                    CASH APP CASHTAG (NO $)
                   </label>
                   <input
                     value={cashapp}
                     onChange={(e) => setCashapp(e.target.value)}
-                    placeholder="$alexjohnson"
+                    placeholder="alexjohnson"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    PAYPAL (LINK OR PAYPAL.ME USERNAME)
+                    PREFERRED EMAIL
                   </label>
                   <input
-                    value={paypal}
-                    onChange={(e) => setPaypal(e.target.value)}
-                    placeholder="https://paypal.me/alexjohnson"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="alex@example.com"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    ZELLE (EMAIL OR PHONE)
+                    PHONE NUMBER
                   </label>
                   <input
-                    value={zelle}
-                    onChange={(e) => setZelle(e.target.value)}
-                    placeholder="alex@example.com or +1..."
-                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    APPLE PAY (PHONE NUMBER FOR iMESSAGE)
-                  </label>
-                  <input
-                    value={applePhone}
-                    onChange={(e) => setApplePhone(e.target.value)}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     placeholder="+1 (555) 555-5555"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
-                  <p className="mt-2 text-xs text-white/40">
-                    This button will open Messages to that number (sms:).
-                  </p>
                 </div>
               </div>
 
