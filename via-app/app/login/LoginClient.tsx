@@ -27,20 +27,20 @@ export default function LoginClient() {
   const [cooldown, setCooldown] = useState(0);
 
   // If already logged in → go to returnTo
-  useEffect(() => {
-    let cancelled = false;
+useEffect(() => {
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (session) {
+      window.location.href = returnTo;
+    }
+  });
 
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!cancelled && data.session) {
-        window.location.href = returnTo;
-      }
-    })();
+  return () => {
+    subscription.unsubscribe();
+  };
+}, [returnTo]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [returnTo]);
 
   async function signInWithGoogle() {
     const redirectTo =
