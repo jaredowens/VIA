@@ -368,7 +368,7 @@ export default function SetupPage() {
 
           <div className="text-center">
             <h1 className="text-lg font-medium tracking-wide text-white/90">
-              Setup Your Card
+              Setup Your Card (DEBUG A)
             </h1>
             <p className="mt-3 text-[12px] tracking-[0.35em] text-white/45">
               {cardId}
