@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 type LegacyPayments = {
   venmo?: string;
@@ -108,6 +108,7 @@ function legacyToList(p: any): PaymentItem[] {
 }
 
 export default function SetupPage() {
+  const router = useRouter();
   const { cardId } = useParams<{ cardId: string }>();
 
   const [loading, setLoading] = useState(true);
@@ -150,9 +151,9 @@ export default function SetupPage() {
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) {
-        window.location.href = `/login?returnTo=${encodeURIComponent(
-          `/setup/${cardId}`
-        )}`;
+        router.replace(
+          `/login?returnTo=${encodeURIComponent(`/setup/${cardId}`)}`
+        );
         return;
       }
 
@@ -179,7 +180,7 @@ export default function SetupPage() {
       }
 
       if (!data.owner_user_id) {
-        window.location.href = `/claim/${cardId}`;
+        router.replace(`/claim/${cardId}`);
         return;
       }
 
@@ -187,7 +188,7 @@ export default function SetupPage() {
       const uid = userData.user?.id;
 
       if (!uid || data.owner_user_id !== uid) {
-        window.location.href = returnToCard;
+        router.replace(returnToCard);
         return;
       }
 
@@ -226,7 +227,7 @@ export default function SetupPage() {
     return () => {
       cancelled = true;
     };
-  }, [cardId, returnToCard]);
+  }, [cardId, returnToCard, router]);
 
   function movePayment(id: string, dir: -1 | 1) {
     setPayments((prev) => {
@@ -285,57 +286,66 @@ export default function SetupPage() {
     setSaving(true);
     setMsg("");
 
-    // Clean payment values by type
-    const cleanedPayments = payments
-      .map((p) => {
-        let v = p.value.trim();
-        if (p.type === "venmo") v = normalizeVenmoHandle(v);
-        if (p.type === "cashapp") v = normalizeCashAppTag(v);
-        if (p.type === "paypal") v = normalizePaypal(v);
-        return { ...p, label: p.label.trim() || prettyLabel(p.type), value: v };
-      })
-      .filter((p) => p.value);
+    try {
+      // Clean payment values by type
+      const cleanedPayments = payments
+        .map((p) => {
+          let v = p.value.trim();
+          if (p.type === "venmo") v = normalizeVenmoHandle(v);
+          if (p.type === "cashapp") v = normalizeCashAppTag(v);
+          if (p.type === "paypal") v = normalizePaypal(v);
+          return {
+            ...p,
+            label: p.label.trim() || prettyLabel(p.type),
+            value: v,
+          };
+        })
+        .filter((p) => p.value);
 
-    // Store phone/email in payments_json too for backward compatibility
-    // but we will NOT render them as payment buttons on the public page.
-    const legacyCompat: LegacyPayments = {
-      phone: phoneNorm,
-      email: normalizeEmail(email) || undefined,
-    };
+      // Store phone/email in payments_json too for backward compatibility
+      // but we will NOT render them as payment buttons on the public page.
+      const legacyCompat: LegacyPayments = {
+        phone: phoneNorm,
+        email: normalizeEmail(email) || undefined,
+      };
 
-    const payloadToStore = [
-      ...cleanedPayments.map((p) => ({
-        id: p.id,
-        type: p.type,
-        label: p.label,
-        value: p.value,
-      })),
-    ];
+      const payloadToStore = [
+        ...cleanedPayments.map((p) => ({
+          id: p.id,
+          type: p.type,
+          label: p.label,
+          value: p.value,
+        })),
+      ];
 
-    const { error } = await supabase
-      .from("cards")
-      .update({
-        display_name: computedDisplay,
-        bio: bio.trim() || null,
-        photo_url: photoUrl.trim() || null,
-        pay_label: payLabel.trim() || null,
+      const { error } = await supabase
+        .from("cards")
+        .update({
+          display_name: computedDisplay,
+          bio: bio.trim() || null,
+          photo_url: photoUrl.trim() || null,
+          pay_label: payLabel.trim() || null,
 
-        // payments_json becomes ordered array, but keep phone/email accessible via legacy keys
-        payments_json: Object.assign(payloadToStore, legacyCompat) as any,
+          // payments_json becomes ordered array, but keep phone/email accessible via legacy keys
+          payments_json: Object.assign(payloadToStore, legacyCompat) as any,
 
-        show_phone: showPhone,
-        show_email: showEmail,
-        show_save_contact: showSaveContact,
-      })
-      .eq("id", cardId);
+          show_phone: showPhone,
+          show_email: showEmail,
+          show_save_contact: showSaveContact,
+        })
+        .eq("id", cardId);
 
-    if (error) {
-      setMsg(error.message);
+      if (error) {
+        setMsg(error.message);
+        return;
+      }
+
+      // ✅ No full refresh; Next.js client navigation
+      router.push(returnToCard);
+    } finally {
+      // If navigation happens, this doesn't matter; if it fails, it prevents getting stuck.
       setSaving(false);
-      return;
     }
-
-    window.location.href = returnToCard;
   }
 
   return (
@@ -480,6 +490,7 @@ export default function SetupPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <button
+                              type="button"
                               onClick={() => movePayment(p.id, -1)}
                               disabled={idx === 0}
                               className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
@@ -487,6 +498,7 @@ export default function SetupPage() {
                               Up
                             </button>
                             <button
+                              type="button"
                               onClick={() => movePayment(p.id, 1)}
                               disabled={idx === payments.length - 1}
                               className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
@@ -494,6 +506,7 @@ export default function SetupPage() {
                               Down
                             </button>
                             <button
+                              type="button"
                               onClick={() => removePayment(p.id)}
                               className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-red-300 hover:bg-white/10"
                             >
@@ -552,6 +565,7 @@ export default function SetupPage() {
                       />
                     </div>
                     <button
+                      type="button"
                       onClick={addCustomPayment}
                       className="mt-3 w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"
                     >
@@ -603,6 +617,7 @@ export default function SetupPage() {
               {/* ACTIONS */}
               <div className="space-y-3">
                 <button
+                  type="button"
                   onClick={save}
                   disabled={saving}
                   className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7 disabled:opacity-60 disabled:hover:translate-y-0"
@@ -614,7 +629,8 @@ export default function SetupPage() {
                 </button>
 
                 <button
-                  onClick={() => (window.location.href = returnToCard)}
+                  type="button"
+                  onClick={() => router.push(returnToCard)}
                   className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-4 text-sm tracking-wide text-white/60 hover:bg-white/5"
                 >
                   Cancel
