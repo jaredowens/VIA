@@ -1,16 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { useParams, useRouter } from "next/navigation";
-
-type LegacyPayments = {
-  venmo?: string;
-  cashapp?: string;
-  email?: string;
-  phone?: string;
-  paypal?: string;
-};
 
 type PaymentItem = {
   id: string;
@@ -19,7 +11,7 @@ type PaymentItem = {
   value: string;
 };
 
-type CardRow = {
+type CardsRow = {
   id: string;
   owner_user_id: string | null;
   display_name: string | null;
@@ -40,82 +32,104 @@ function uid() {
 function normalizeVenmoHandle(input: string) {
   return input.trim().replace(/^@/, "");
 }
-
 function normalizeCashAppTag(input: string) {
   return input.trim().replace(/^\$/, "");
 }
-
+function normalizePaypal(input: string) {
+  return input.trim().replace(/^@/, "");
+}
+function normalizePhone(input: string) {
+  return input.trim();
+}
 function normalizeEmail(input: string) {
   return input.trim();
 }
 
-function normalizePhone(input: string) {
-  return input.trim();
-}
-
-function normalizePaypal(input: string) {
-  return input.trim();
-}
-
-function prettyLabel(type: PaymentItem["type"]) {
-  if (type === "venmo") return "Venmo";
-  if (type === "cashapp") return "Cash App";
-  if (type === "paypal") return "PayPal";
-  return "Payment";
-}
-
-function legacyToList(p: any): PaymentItem[] {
-  // If already array, try to use it
-  if (Array.isArray(p)) {
-    return p
-      .map((x) => ({
-        id: String(x?.id ?? uid()),
-        type:
-          (String(x?.type ?? "custom") as PaymentItem["type"]) || "custom",
-        label: String(x?.label ?? prettyLabel(x?.type ?? "custom")),
-        value: String(x?.value ?? x?.url ?? ""),
-      }))
-      .filter((x) => x.value.trim());
+function coerceToStatePayments(p: any): {
+  phone: string;
+  email: string;
+  links: PaymentItem[];
+} {
+  // Preferred: { phone, email, links: [] }
+  if (p && typeof p === "object" && Array.isArray(p.links)) {
+    return {
+      phone: typeof p.phone === "string" ? p.phone : "",
+      email: typeof p.email === "string" ? p.email : "",
+      links: p.links
+        .map((x: any) => ({
+          id: String(x?.id ?? uid()),
+          type:
+            (String(x?.type ?? "custom") as PaymentItem["type"]) || "custom",
+          label: String(x?.label ?? "Payment"),
+          value: String(x?.value ?? ""),
+        }))
+        .filter((x: PaymentItem) => x.value.trim()),
+    };
   }
 
-  // Legacy object format
-  const legacy = (p ?? {}) as LegacyPayments;
-  const out: PaymentItem[] = [];
+  // Legacy object: { venmo, cashapp, paypal, phone, email }
+  if (p && typeof p === "object" && !Array.isArray(p)) {
+    const links: PaymentItem[] = [];
 
-  if (legacy.venmo?.trim())
-    out.push({
-      id: uid(),
-      type: "venmo",
-      label: "Venmo",
-      value: normalizeVenmoHandle(legacy.venmo),
-    });
-  if (legacy.cashapp?.trim())
-    out.push({
-      id: uid(),
-      type: "cashapp",
-      label: "Cash App",
-      value: normalizeCashAppTag(legacy.cashapp),
-    });
-  if (legacy.paypal?.trim())
-    out.push({
-      id: uid(),
-      type: "paypal",
-      label: "PayPal",
-      value: normalizePaypal(legacy.paypal),
-    });
+    if (typeof p.venmo === "string" && p.venmo.trim()) {
+      links.push({
+        id: uid(),
+        type: "venmo",
+        label: "Venmo",
+        value: normalizeVenmoHandle(p.venmo),
+      });
+    }
+    if (typeof p.cashapp === "string" && p.cashapp.trim()) {
+      links.push({
+        id: uid(),
+        type: "cashapp",
+        label: "Cash App",
+        value: normalizeCashAppTag(p.cashapp),
+      });
+    }
+    if (typeof p.paypal === "string" && p.paypal.trim()) {
+      links.push({
+        id: uid(),
+        type: "paypal",
+        label: "PayPal",
+        value: normalizePaypal(p.paypal),
+      });
+    }
 
-  return out;
+    return {
+      phone: typeof p.phone === "string" ? p.phone : "",
+      email: typeof p.email === "string" ? p.email : "",
+      links,
+    };
+  }
+
+  // Array format (rare): treat as ordered links only
+  if (Array.isArray(p)) {
+    return {
+      phone: "",
+      email: "",
+      links: p
+        .map((x: any) => ({
+          id: String(x?.id ?? uid()),
+          type:
+            (String(x?.type ?? "custom") as PaymentItem["type"]) || "custom",
+          label: String(x?.label ?? "Payment"),
+          value: String(x?.value ?? ""),
+        }))
+        .filter((x: PaymentItem) => x.value.trim()),
+    };
+  }
+
+  return { phone: "", email: "", links: [] };
 }
 
 export default function SetupPage() {
-  const router = useRouter();
   const { cardId } = useParams<{ cardId: string }>();
+  if (!cardId) return null;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
-
-  const [card, setCard] = useState<CardRow | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -124,19 +138,15 @@ export default function SetupPage() {
   const [photoUrl, setPhotoUrl] = useState("");
   const [payLabel, setPayLabel] = useState("");
 
-  // Contact rails
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
-  // Ordered payments list
   const [payments, setPayments] = useState<PaymentItem[]>([]);
 
-  // Privacy toggles
   const [showPhone, setShowPhone] = useState(true);
   const [showEmail, setShowEmail] = useState(true);
   const [showSaveContact, setShowSaveContact] = useState(true);
 
-  // Custom payment adder
   const [customLabel, setCustomLabel] = useState("");
   const [customValue, setCustomValue] = useState("");
 
@@ -151,9 +161,9 @@ export default function SetupPage() {
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) {
-        router.replace(
-          `/login?returnTo=${encodeURIComponent(`/setup/${cardId}`)}`
-        );
+        window.location.href = `/login?returnTo=${encodeURIComponent(
+          `/setup/${cardId}`
+        )}`;
         return;
       }
 
@@ -180,21 +190,21 @@ export default function SetupPage() {
       }
 
       if (!data.owner_user_id) {
-        router.replace(`/claim/${cardId}`);
+        window.location.href = `/claim/${cardId}`;
         return;
       }
 
       const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
+      const currentUid = userData.user?.id;
 
-      if (!uid || data.owner_user_id !== uid) {
-        router.replace(returnToCard);
+      if (!currentUid || data.owner_user_id !== currentUid) {
+        window.location.href = returnToCard;
         return;
       }
 
-      setCard(data as CardRow);
+      const row = data as CardsRow;
 
-      const dn = (data.display_name ?? "").trim();
+      const dn = (row.display_name ?? "").trim();
       if (dn) {
         const parts = dn.split(/\s+/);
         setFirstName(parts[0] ?? "");
@@ -204,30 +214,27 @@ export default function SetupPage() {
         setLastName("");
       }
 
-      setBio((data as any).bio ?? "");
-      setPhotoUrl(data.photo_url ?? "");
-      setPayLabel(data.pay_label ?? "");
+      setBio(row.bio ?? "");
+      setPhotoUrl(row.photo_url ?? "");
+      setPayLabel(row.pay_label ?? "");
 
-      // Pull legacy phone/email if they were stored in payments_json before
-      const legacy = (data.payments_json ?? {}) as LegacyPayments;
-      setPhone(legacy.phone ?? "");
-      setEmail(legacy.email ?? "");
+      const parsed = coerceToStatePayments(row.payments_json);
+      setPhone(parsed.phone ?? "");
+      setEmail(parsed.email ?? "");
+      setPayments(parsed.links ?? []);
 
-      // Convert payments_json to ordered list (only real payments)
-      setPayments(legacyToList(data.payments_json));
-
-      setShowPhone(data.show_phone ?? true);
-      setShowEmail(data.show_email ?? true);
-      setShowSaveContact(data.show_save_contact ?? true);
+      setShowPhone(row.show_phone ?? true);
+      setShowEmail(row.show_email ?? true);
+      setShowSaveContact(row.show_save_contact ?? true);
 
       setLoading(false);
     }
 
-    if (cardId) load();
+    load();
     return () => {
       cancelled = true;
     };
-  }, [cardId, returnToCard, router]);
+  }, [cardId, returnToCard]);
 
   function movePayment(id: string, dir: -1 | 1) {
     setPayments((prev) => {
@@ -253,6 +260,18 @@ export default function SetupPage() {
     setPayments((prev) => prev.filter((p) => p.id !== id));
   }
 
+  function addPreset(type: PaymentItem["type"]) {
+    const label =
+      type === "venmo"
+        ? "Venmo"
+        : type === "cashapp"
+        ? "Cash App"
+        : type === "paypal"
+        ? "PayPal"
+        : "Payment";
+    setPayments((prev) => [...prev, { id: uid(), type, label, value: "" }]);
+  }
+
   function addCustomPayment() {
     const l = customLabel.trim();
     const v = customValue.trim();
@@ -267,88 +286,87 @@ export default function SetupPage() {
     setCustomValue("");
   }
 
- async function save() {
-  if (saving) return;
+  async function save() {
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    const computedDisplay = `${fn} ${ln}`.trim();
 
-  const fn = firstName.trim();
-  const ln = lastName.trim();
-  const computedDisplay = `${fn} ${ln}`.trim();
-
-  if (!fn) {
-    setMsg("Preferred first name is required.");
-    return;
-  }
-
-  const phoneNorm = normalizePhone(phone);
-  if (!phoneNorm) {
-    setMsg("Direct Pay phone number is required.");
-    return;
-  }
-
-  setSaving(true);
-  setMsg("");
-
-  try {
-    const cleanedPayments = payments
-      .map((p) => {
-        let v = p.value.trim();
-        if (p.type === "venmo") v = normalizeVenmoHandle(v);
-        if (p.type === "cashapp") v = normalizeCashAppTag(v);
-        if (p.type === "paypal") v = normalizePaypal(v);
-
-        return {
-          ...p,
-          label: p.label.trim() || prettyLabel(p.type),
-          value: v,
-        };
-      })
-      .filter((p) => p.value);
-
-    const legacyCompat: LegacyPayments = {
-      phone: phoneNorm,
-      email: normalizeEmail(email) || undefined,
-    };
-
-    const payloadToStore = cleanedPayments.map((p) => ({
-      id: p.id,
-      type: p.type,
-      label: p.label,
-      value: p.value,
-    }));
-
-    const { data, error } = await supabase
-      .from("cards")
-      .update({
-        display_name: computedDisplay,
-        bio: bio.trim() || null,
-        photo_url: photoUrl.trim() || null,
-        pay_label: payLabel.trim() || null,
-        payments_json: Object.assign(payloadToStore, legacyCompat) as any,
-        show_phone: showPhone,
-        show_email: showEmail,
-        show_save_contact: showSaveContact,
-      })
-      .eq("id", cardId)
-      .select("id"); // ✅ forces Supabase to return updated rows
-
-    if (error) throw error;
-
-    // ✅ If 0 rows came back, update didn’t happen (usually RLS)
-    if (!data || data.length === 0) {
-      setMsg(
-        "Save blocked (0 rows updated). This is usually Supabase RLS or the cardId didn't match."
-      );
+    if (!fn) {
+      setMsg("Preferred first name is required.");
       return;
     }
 
-    router.push(returnToCard);
-  } catch (e: any) {
-    console.error("SAVE FAILED:", e);
-    setMsg(e?.message || "Save failed. Check console.");
-  } finally {
-    setSaving(false);
+    const phoneNorm = normalizePhone(phone);
+    if (!phoneNorm) {
+      setMsg("Direct phone number is required.");
+      return;
+    }
+
+    setSaving(true);
+    setMsg("");
+
+    try {
+      const cleanedLinks = payments
+        .map((p) => {
+          let v = p.value.trim();
+          if (p.type === "venmo") v = normalizeVenmoHandle(v);
+          if (p.type === "cashapp") v = normalizeCashAppTag(v);
+          if (p.type === "paypal") v = normalizePaypal(v);
+          return {
+            ...p,
+            label: p.label.trim() || "Payment",
+            value: v,
+          };
+        })
+        .filter((p) => p.value);
+
+      // ✅ LEGACY-FRIENDLY SHAPE (passes DB constraints that expect venmo/cashapp/paypal keys)
+      const venmo = cleanedLinks.find((x) => x.type === "venmo")?.value ?? "";
+      const cashapp =
+        cleanedLinks.find((x) => x.type === "cashapp")?.value ?? "";
+      const paypal = cleanedLinks.find((x) => x.type === "paypal")?.value ?? "";
+
+      const payments_json: any = {
+        venmo,
+        cashapp,
+        paypal,
+        phone: phoneNorm,
+        email: normalizeEmail(email) || "",
+        // keep modern list too (so /c can use links if needed)
+        links: cleanedLinks.map((p) => ({
+          id: p.id,
+          type: p.type,
+          label: p.label,
+          value: p.value,
+        })),
+      };
+
+      const { error } = await supabase
+        .from("cards")
+        .update({
+          display_name: computedDisplay,
+          bio: bio.trim() || null,
+          photo_url: photoUrl.trim() || null,
+          pay_label: payLabel.trim() || null,
+          payments_json,
+          show_phone: showPhone,
+          show_email: showEmail,
+          show_save_contact: showSaveContact,
+        })
+        .eq("id", cardId);
+
+      if (error) {
+        console.error("SAVE ERROR:", error);
+        setMsg(error.message);
+        return;
+      }
+
+      window.location.href = returnToCard;
+    } finally {
+      setSaving(false);
+    }
   }
-}
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
       <div className="pointer-events-none absolute inset-0">
@@ -368,7 +386,7 @@ export default function SetupPage() {
 
           <div className="text-center">
             <h1 className="text-lg font-medium tracking-wide text-white/90">
-              Setup Your Card (DEBUG A)
+              Setup Your Card
             </h1>
             <p className="mt-3 text-[12px] tracking-[0.35em] text-white/45">
               {cardId}
@@ -447,10 +465,11 @@ export default function SetupPage() {
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    DIRECT PAY PHONE (REQUIRED)
+                    DIRECT PHONE (REQUIRED)
                   </label>
                   <p className="mb-2 text-xs text-white/40 tracking-wide">
-                    Used for direct transfers. Shown on your card if enabled.
+                    Used for direct transfers. On your card: tap to message, hold
+                    to copy.
                   </p>
                   <input
                     value={phone}
@@ -464,7 +483,7 @@ export default function SetupPage() {
                     EMAIL (OPTIONAL)
                   </label>
                   <p className="mb-2 text-xs text-white/40 tracking-wide">
-                    Tap/hold on your card will copy it.
+                    On your card: tap/hold copies it.
                   </p>
                   <input
                     value={email}
@@ -476,10 +495,34 @@ export default function SetupPage() {
 
                 <div className="pt-2">
                   <div className="text-xs tracking-[0.35em] text-white/45 mb-3">
-                    PAYMENT METHODS (ORDERED)
+                    PAYMENT LINKS (ORDERED)
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => addPreset("venmo")}
+                      className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
+                    >
+                      + Venmo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addPreset("cashapp")}
+                      className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
+                    >
+                      + Cash App
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addPreset("paypal")}
+                      className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
+                    >
+                      + PayPal
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-3">
                     {payments.map((p, idx) => (
                       <div
                         key={p.id}
@@ -487,7 +530,7 @@ export default function SetupPage() {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-medium text-white/90">
-                            {p.label}
+                            {p.label || "Payment"}
                           </div>
                           <div className="flex items-center gap-2">
                             <button
@@ -532,7 +575,7 @@ export default function SetupPage() {
 
                           <div>
                             <label className="block text-xs tracking-wider text-white/55 mb-2">
-                              VALUE (USERNAME OR LINK)
+                              USERNAME OR LINK
                             </label>
                             <input
                               value={p.value}
@@ -549,7 +592,7 @@ export default function SetupPage() {
 
                   <div className="mt-4 rounded-2xl border border-white/12 bg-white/5 p-4">
                     <div className="text-sm font-medium text-white/90">
-                      Add Custom Payment
+                      Add Custom Link
                     </div>
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <input
@@ -575,8 +618,8 @@ export default function SetupPage() {
                   </div>
 
                   <p className="mt-3 text-xs text-white/40 tracking-wide">
-                    Tip: Reorder with Up/Down. The top payment appears first on
-                    your card.
+                    Tip: reorder with Up/Down. The top link shows first on your
+                    card.
                   </p>
                 </div>
               </div>
@@ -618,7 +661,6 @@ export default function SetupPage() {
               {/* ACTIONS */}
               <div className="space-y-3">
                 <button
-                  type="button"
                   onClick={save}
                   disabled={saving}
                   className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7 disabled:opacity-60 disabled:hover:translate-y-0"
@@ -630,8 +672,7 @@ export default function SetupPage() {
                 </button>
 
                 <button
-                  type="button"
-                  onClick={() => router.push(returnToCard)}
+                  onClick={() => (window.location.href = returnToCard)}
                   className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-4 text-sm tracking-wide text-white/60 hover:bg-white/5"
                 >
                   Cancel
