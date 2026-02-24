@@ -267,10 +267,8 @@ export default function SetupPage() {
     setCustomValue("");
   }
 
-  async function save() {
+ async function save() {
   if (saving) return;
-
-  console.log("SAVE CLICKED", { cardId });
 
   const fn = firstName.trim();
   const ln = lastName.trim();
@@ -291,7 +289,6 @@ export default function SetupPage() {
   setMsg("");
 
   try {
-    // Clean payment values by type
     const cleanedPayments = payments
       .map((p) => {
         let v = p.value.trim();
@@ -307,7 +304,6 @@ export default function SetupPage() {
       })
       .filter((p) => p.value);
 
-    // Legacy compatibility object
     const legacyCompat: LegacyPayments = {
       phone: phoneNorm,
       email: normalizeEmail(email) || undefined,
@@ -320,7 +316,7 @@ export default function SetupPage() {
       value: p.value,
     }));
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("cards")
       .update({
         display_name: computedDisplay,
@@ -332,13 +328,19 @@ export default function SetupPage() {
         show_email: showEmail,
         show_save_contact: showSaveContact,
       })
-      .eq("id", cardId);
+      .eq("id", cardId)
+      .select("id"); // ✅ forces Supabase to return updated rows
 
-    if (error) {
-      throw error;
+    if (error) throw error;
+
+    // ✅ If 0 rows came back, update didn’t happen (usually RLS)
+    if (!data || data.length === 0) {
+      setMsg(
+        "Save blocked (0 rows updated). This is usually Supabase RLS or the cardId didn't match."
+      );
+      return;
     }
 
-    console.log("SAVE SUCCESS — navigating");
     router.push(returnToCard);
   } catch (e: any) {
     console.error("SAVE FAILED:", e);
@@ -347,7 +349,6 @@ export default function SetupPage() {
     setSaving(false);
   }
 }
-
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
       <div className="pointer-events-none absolute inset-0">
