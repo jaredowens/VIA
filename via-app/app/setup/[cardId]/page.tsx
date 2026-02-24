@@ -1,14 +1,22 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useParams } from "next/navigation";
 
-type Payments = {
-  venmo?: string;   // no @
-  cashapp?: string; // no $
+type LegacyPayments = {
+  venmo?: string;
+  cashapp?: string;
   email?: string;
   phone?: string;
-  paypal?: string;  // paypal.me username OR full link (we’ll accept either)
+  paypal?: string;
+};
+
+type PaymentItem = {
+  id: string;
+  type: "venmo" | "cashapp" | "paypal" | "custom";
+  label: string;
+  value: string;
 };
 
 type CardRow = {
@@ -18,8 +26,16 @@ type CardRow = {
   bio: string | null;
   photo_url: string | null;
   pay_label: string | null;
-  payments_json: Payments | null;
+  payments_json: any | null;
+
+  show_phone?: boolean | null;
+  show_email?: boolean | null;
+  show_save_contact?: boolean | null;
 };
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
 
 function normalizeVenmoHandle(input: string) {
   return input.trim().replace(/^@/, "");
@@ -41,12 +57,58 @@ function normalizePaypal(input: string) {
   return input.trim();
 }
 
-export default function SetupPage({
-  params,
-}: {
-  params: Promise<{ cardId: string }>;
-}) {
-  const { cardId } = use(params);
+function prettyLabel(type: PaymentItem["type"]) {
+  if (type === "venmo") return "Venmo";
+  if (type === "cashapp") return "Cash App";
+  if (type === "paypal") return "PayPal";
+  return "Payment";
+}
+
+function legacyToList(p: any): PaymentItem[] {
+  // If already array, try to use it
+  if (Array.isArray(p)) {
+    return p
+      .map((x) => ({
+        id: String(x?.id ?? uid()),
+        type:
+          (String(x?.type ?? "custom") as PaymentItem["type"]) || "custom",
+        label: String(x?.label ?? prettyLabel(x?.type ?? "custom")),
+        value: String(x?.value ?? x?.url ?? ""),
+      }))
+      .filter((x) => x.value.trim());
+  }
+
+  // Legacy object format
+  const legacy = (p ?? {}) as LegacyPayments;
+  const out: PaymentItem[] = [];
+
+  if (legacy.venmo?.trim())
+    out.push({
+      id: uid(),
+      type: "venmo",
+      label: "Venmo",
+      value: normalizeVenmoHandle(legacy.venmo),
+    });
+  if (legacy.cashapp?.trim())
+    out.push({
+      id: uid(),
+      type: "cashapp",
+      label: "Cash App",
+      value: normalizeCashAppTag(legacy.cashapp),
+    });
+  if (legacy.paypal?.trim())
+    out.push({
+      id: uid(),
+      type: "paypal",
+      label: "PayPal",
+      value: normalizePaypal(legacy.paypal),
+    });
+
+  return out;
+}
+
+export default function SetupPage() {
+  const { cardId } = useParams<{ cardId: string }>();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,11 +123,21 @@ export default function SetupPage({
   const [photoUrl, setPhotoUrl] = useState("");
   const [payLabel, setPayLabel] = useState("");
 
-  const [venmo, setVenmo] = useState("");
-  const [cashapp, setCashapp] = useState("");
-  const [email, setEmail] = useState("");
+  // Contact rails
   const [phone, setPhone] = useState("");
-  const [paypal, setPaypal] = useState("");
+  const [email, setEmail] = useState("");
+
+  // Ordered payments list
+  const [payments, setPayments] = useState<PaymentItem[]>([]);
+
+  // Privacy toggles
+  const [showPhone, setShowPhone] = useState(true);
+  const [showEmail, setShowEmail] = useState(true);
+  const [showSaveContact, setShowSaveContact] = useState(true);
+
+  // Custom payment adder
+  const [customLabel, setCustomLabel] = useState("");
+  const [customValue, setCustomValue] = useState("");
 
   const returnToCard = useMemo(() => `/c/${cardId}`, [cardId]);
 
@@ -87,7 +159,7 @@ export default function SetupPage({
       const { data, error } = await supabase
         .from("cards")
         .select(
-          "id, owner_user_id, display_name, bio, photo_url, pay_label, payments_json"
+          "id, owner_user_id, display_name, bio, photo_url, pay_label, payments_json, show_phone, show_email, show_save_contact"
         )
         .eq("id", cardId)
         .maybeSingle();
@@ -135,22 +207,64 @@ export default function SetupPage({
       setPhotoUrl(data.photo_url ?? "");
       setPayLabel(data.pay_label ?? "");
 
-      const p = (data.payments_json ?? {}) as Payments;
-      setVenmo(p.venmo ?? "");
-      setCashapp(p.cashapp ?? "");
-      setEmail(p.email ?? "");
-      setPhone(p.phone ?? "");
-      setPaypal(p.paypal ?? "");
+      // Pull legacy phone/email if they were stored in payments_json before
+      const legacy = (data.payments_json ?? {}) as LegacyPayments;
+      setPhone(legacy.phone ?? "");
+      setEmail(legacy.email ?? "");
+
+      // Convert payments_json to ordered list (only real payments)
+      setPayments(legacyToList(data.payments_json));
+
+      setShowPhone(data.show_phone ?? true);
+      setShowEmail(data.show_email ?? true);
+      setShowSaveContact(data.show_save_contact ?? true);
 
       setLoading(false);
     }
 
     if (cardId) load();
-
     return () => {
       cancelled = true;
     };
   }, [cardId, returnToCard]);
+
+  function movePayment(id: string, dir: -1 | 1) {
+    setPayments((prev) => {
+      const i = prev.findIndex((p) => p.id === id);
+      if (i < 0) return prev;
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      const tmp = next[i];
+      next[i] = next[j];
+      next[j] = tmp;
+      return next;
+    });
+  }
+
+  function updatePayment(id: string, patch: Partial<PaymentItem>) {
+    setPayments((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...patch } : p))
+    );
+  }
+
+  function removePayment(id: string) {
+    setPayments((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  function addCustomPayment() {
+    const l = customLabel.trim();
+    const v = customValue.trim();
+    if (!l || !v) return;
+
+    setPayments((prev) => [
+      ...prev,
+      { id: uid(), type: "custom", label: l, value: v },
+    ]);
+
+    setCustomLabel("");
+    setCustomValue("");
+  }
 
   async function save() {
     const fn = firstName.trim();
@@ -162,21 +276,41 @@ export default function SetupPage({
       return;
     }
 
+    const phoneNorm = normalizePhone(phone);
+    if (!phoneNorm) {
+      setMsg("Direct Pay phone number is required.");
+      return;
+    }
+
     setSaving(true);
     setMsg("");
 
-    const payments: Payments = {
-      venmo: normalizeVenmoHandle(venmo) || undefined,
-      cashapp: normalizeCashAppTag(cashapp) || undefined,
+    // Clean payment values by type
+    const cleanedPayments = payments
+      .map((p) => {
+        let v = p.value.trim();
+        if (p.type === "venmo") v = normalizeVenmoHandle(v);
+        if (p.type === "cashapp") v = normalizeCashAppTag(v);
+        if (p.type === "paypal") v = normalizePaypal(v);
+        return { ...p, label: p.label.trim() || prettyLabel(p.type), value: v };
+      })
+      .filter((p) => p.value);
+
+    // Store phone/email in payments_json too for backward compatibility
+    // but we will NOT render them as payment buttons on the public page.
+    const legacyCompat: LegacyPayments = {
+      phone: phoneNorm,
       email: normalizeEmail(email) || undefined,
-      phone: normalizePhone(phone) || undefined,
-      paypal: normalizePaypal(paypal) || undefined,
     };
 
-    Object.keys(payments).forEach((k) => {
-      const key = k as keyof Payments;
-      if (!payments[key]) delete payments[key];
-    });
+    const payloadToStore = [
+      ...cleanedPayments.map((p) => ({
+        id: p.id,
+        type: p.type,
+        label: p.label,
+        value: p.value,
+      })),
+    ];
 
     const { error } = await supabase
       .from("cards")
@@ -185,7 +319,13 @@ export default function SetupPage({
         bio: bio.trim() || null,
         photo_url: photoUrl.trim() || null,
         pay_label: payLabel.trim() || null,
-        payments_json: payments,
+
+        // payments_json becomes ordered array, but keep phone/email accessible via legacy keys
+        payments_json: Object.assign(payloadToStore, legacyCompat) as any,
+
+        show_phone: showPhone,
+        show_email: showEmail,
+        show_save_contact: showSaveContact,
       })
       .eq("id", cardId);
 
@@ -235,12 +375,12 @@ export default function SetupPage({
                 <p className="text-center text-sm text-red-400">{msg}</p>
               )}
 
+              {/* BASICS */}
               <div className="space-y-4">
                 <div className="text-xs tracking-[0.35em] text-white/45">
                   BASICS
                 </div>
 
-                {/* First + Last same bar (two inputs, same row) */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs tracking-wider text-white/60 mb-2">
@@ -288,6 +428,7 @@ export default function SetupPage({
                 </div>
               </div>
 
+              {/* PAYMENTS */}
               <div className="space-y-4">
                 <div className="text-xs tracking-[0.35em] text-white/45">
                   PAYMENTS
@@ -295,42 +436,11 @@ export default function SetupPage({
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    VENMO USERNAME (NO @)
+                    DIRECT PAY PHONE (REQUIRED)
                   </label>
-                  <input
-                    value={venmo}
-                    onChange={(e) => setVenmo(e.target.value)}
-                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    CASH APP CASHTAG (NO $)
-                  </label>
-                  <input
-                    value={cashapp}
-                    onChange={(e) => setCashapp(e.target.value)}
-                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    PREFERRED EMAIL (ZELLE)
-                  </label>
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    type="email"
-                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    PHONE NUMBER (APPLE PAY, SAMSUNG PAY, ETC.)
-                  </label>
+                  <p className="mb-2 text-xs text-white/40 tracking-wide">
+                    Used for direct transfers. Shown on your card if enabled.
+                  </p>
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -340,16 +450,157 @@ export default function SetupPage({
 
                 <div>
                   <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    PAYPAL (USERNAME OR LINK)
+                    EMAIL (OPTIONAL)
                   </label>
+                  <p className="mb-2 text-xs text-white/40 tracking-wide">
+                    Tap/hold on your card will copy it.
+                  </p>
                   <input
-                    value={paypal}
-                    onChange={(e) => setPaypal(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    type="email"
                     className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                   />
                 </div>
+
+                <div className="pt-2">
+                  <div className="text-xs tracking-[0.35em] text-white/45 mb-3">
+                    PAYMENT METHODS (ORDERED)
+                  </div>
+
+                  <div className="space-y-3">
+                    {payments.map((p, idx) => (
+                      <div
+                        key={p.id}
+                        className="rounded-2xl border border-white/12 bg-white/5 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-medium text-white/90">
+                            {p.label}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => movePayment(p.id, -1)}
+                              disabled={idx === 0}
+                              className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
+                            >
+                              Up
+                            </button>
+                            <button
+                              onClick={() => movePayment(p.id, 1)}
+                              disabled={idx === payments.length - 1}
+                              className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
+                            >
+                              Down
+                            </button>
+                            <button
+                              onClick={() => removePayment(p.id)}
+                              className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-red-300 hover:bg-white/10"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div>
+                            <label className="block text-xs tracking-wider text-white/55 mb-2">
+                              LABEL
+                            </label>
+                            <input
+                              value={p.label}
+                              onChange={(e) =>
+                                updatePayment(p.id, { label: e.target.value })
+                              }
+                              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs tracking-wider text-white/55 mb-2">
+                              VALUE (USERNAME OR LINK)
+                            </label>
+                            <input
+                              value={p.value}
+                              onChange={(e) =>
+                                updatePayment(p.id, { value: e.target.value })
+                              }
+                              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-white/12 bg-white/5 p-4">
+                    <div className="text-sm font-medium text-white/90">
+                      Add Custom Payment
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <input
+                        placeholder="Label (e.g., Apple Pay)"
+                        value={customLabel}
+                        onChange={(e) => setCustomLabel(e.target.value)}
+                        className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                      />
+                      <input
+                        placeholder="Username or link"
+                        value={customValue}
+                        onChange={(e) => setCustomValue(e.target.value)}
+                        className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                      />
+                    </div>
+                    <button
+                      onClick={addCustomPayment}
+                      className="mt-3 w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  <p className="mt-3 text-xs text-white/40 tracking-wide">
+                    Tip: Reorder with Up/Down. The top payment appears first on
+                    your card.
+                  </p>
+                </div>
               </div>
 
+              {/* PRIVACY */}
+              <div className="space-y-4">
+                <div className="text-xs tracking-[0.35em] text-white/45">
+                  PRIVACY
+                </div>
+
+                <label className="flex items-center gap-3 text-sm text-white/80">
+                  <input
+                    type="checkbox"
+                    checked={showPhone}
+                    onChange={(e) => setShowPhone(e.target.checked)}
+                  />
+                  Show phone on my card
+                </label>
+
+                <label className="flex items-center gap-3 text-sm text-white/80">
+                  <input
+                    type="checkbox"
+                    checked={showEmail}
+                    onChange={(e) => setShowEmail(e.target.checked)}
+                  />
+                  Show email on my card
+                </label>
+
+                <label className="flex items-center gap-3 text-sm text-white/80">
+                  <input
+                    type="checkbox"
+                    checked={showSaveContact}
+                    onChange={(e) => setShowSaveContact(e.target.checked)}
+                  />
+                  Allow “Save Contact”
+                </label>
+              </div>
+
+              {/* ACTIONS */}
               <div className="space-y-3">
                 <button
                   onClick={save}
