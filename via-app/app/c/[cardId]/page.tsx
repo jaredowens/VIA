@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type PaymentItem = {
@@ -121,6 +121,7 @@ function coerceToStatePayments(p: any): {
 }
 
 export default function SetupPage() {
+  const router = useRouter();
   const { cardId } = useParams<{ cardId: string }>();
   if (!cardId) return null;
 
@@ -156,13 +157,7 @@ export default function SetupPage() {
       setLoading(true);
       setMsg("");
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        window.location.href = `/login?returnTo=${encodeURIComponent(
-          `/setup/${cardId}`
-        )}`;
-        return;
-      }
+      // ✅ PUBLIC: no auth gate here. Do NOT redirect to login from /c.
 
       const { data, error } = await supabase
         .from("cards")
@@ -186,16 +181,9 @@ export default function SetupPage() {
         return;
       }
 
+      // If unclaimed, send to claim flow
       if (!data.owner_user_id) {
-        window.location.href = `/claim/${cardId}`;
-        return;
-      }
-
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-
-      if (!uid || data.owner_user_id !== uid) {
-        window.location.href = returnToCard;
+        router.replace(`/claim/${cardId}`);
         return;
       }
 
@@ -231,7 +219,7 @@ export default function SetupPage() {
     return () => {
       cancelled = true;
     };
-  }, [cardId, returnToCard]);
+  }, [cardId, returnToCard, router]);
 
   function movePayment(id: string, dir: -1 | 1) {
     setPayments((prev) => {
@@ -302,53 +290,57 @@ export default function SetupPage() {
     setSaving(true);
     setMsg("");
 
-    const cleanedLinks = payments
-      .map((p) => {
-        let v = p.value.trim();
-        if (p.type === "venmo") v = normalizeVenmoHandle(v);
-        if (p.type === "cashapp") v = normalizeCashAppTag(v);
-        if (p.type === "paypal") v = normalizePaypal(v);
-        return {
-          ...p,
-          label: p.label.trim() || "Payment",
-          value: v,
-        };
-      })
-      .filter((p) => p.value);
+    try {
+      const cleanedLinks = payments
+        .map((p) => {
+          let v = p.value.trim();
+          if (p.type === "venmo") v = normalizeVenmoHandle(v);
+          if (p.type === "cashapp") v = normalizeCashAppTag(v);
+          if (p.type === "paypal") v = normalizePaypal(v);
+          return {
+            ...p,
+            label: p.label.trim() || "Payment",
+            value: v,
+          };
+        })
+        .filter((p) => p.value);
 
-    // Store in clean shape: { phone, email, links: [...] }
-    const payments_json = {
-      phone: phoneNorm,
-      email: normalizeEmail(email) || "",
-      links: cleanedLinks.map((p) => ({
-        id: p.id,
-        type: p.type,
-        label: p.label,
-        value: p.value,
-      })),
-    };
+      // Store in clean shape: { phone, email, links: [...] }
+      const payments_json = {
+        phone: phoneNorm,
+        email: normalizeEmail(email) || "",
+        links: cleanedLinks.map((p) => ({
+          id: p.id,
+          type: p.type,
+          label: p.label,
+          value: p.value,
+        })),
+      };
 
-    const { error } = await supabase
-      .from("cards")
-      .update({
-        display_name: computedDisplay,
-        bio: bio.trim() || null,
-        photo_url: photoUrl.trim() || null,
-        pay_label: payLabel.trim() || null,
-        payments_json,
-        show_phone: showPhone,
-        show_email: showEmail,
-        show_save_contact: showSaveContact,
-      })
-      .eq("id", cardId);
+      const { error } = await supabase
+        .from("cards")
+        .update({
+          display_name: computedDisplay,
+          bio: bio.trim() || null,
+          photo_url: photoUrl.trim() || null,
+          pay_label: payLabel.trim() || null,
+          payments_json,
+          show_phone: showPhone,
+          show_email: showEmail,
+          show_save_contact: showSaveContact,
+        })
+        .eq("id", cardId);
 
-    if (error) {
-      setMsg(error.message);
+      if (error) {
+        setMsg(error.message);
+        return;
+      }
+
+      // ✅ No hard refresh
+      router.push(returnToCard);
+    } finally {
       setSaving(false);
-      return;
     }
-
-    window.location.href = returnToCard;
   }
 
   return (
@@ -452,8 +444,8 @@ export default function SetupPage() {
                     DIRECT PHONE (REQUIRED)
                   </label>
                   <p className="mb-2 text-xs text-white/40 tracking-wide">
-                    Used for direct transfers. On your card: tap to message, hold
-                    to copy.
+                    Used for direct transfers. On your card: tap to message,
+                    hold to copy.
                   </p>
                   <input
                     value={phone}
@@ -645,6 +637,7 @@ export default function SetupPage() {
               {/* ACTIONS */}
               <div className="space-y-3">
                 <button
+                  type="button"
                   onClick={save}
                   disabled={saving}
                   className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7 disabled:opacity-60 disabled:hover:translate-y-0"
@@ -656,7 +649,8 @@ export default function SetupPage() {
                 </button>
 
                 <button
-                  onClick={() => (window.location.href = returnToCard)}
+                  type="button"
+                  onClick={() => router.push(returnToCard)}
                   className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-4 text-sm tracking-wide text-white/60 hover:bg-white/5"
                 >
                   Cancel
