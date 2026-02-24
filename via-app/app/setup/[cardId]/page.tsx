@@ -268,85 +268,85 @@ export default function SetupPage() {
   }
 
   async function save() {
-    const fn = firstName.trim();
-    const ln = lastName.trim();
-    const computedDisplay = `${fn} ${ln}`.trim();
+  if (saving) return;
 
-    if (!fn) {
-      setMsg("Preferred first name is required.");
-      return;
-    }
+  console.log("SAVE CLICKED", { cardId });
 
-    const phoneNorm = normalizePhone(phone);
-    if (!phoneNorm) {
-      setMsg("Direct Pay phone number is required.");
-      return;
-    }
+  const fn = firstName.trim();
+  const ln = lastName.trim();
+  const computedDisplay = `${fn} ${ln}`.trim();
 
-    setSaving(true);
-    setMsg("");
-
-    try {
-      // Clean payment values by type
-      const cleanedPayments = payments
-        .map((p) => {
-          let v = p.value.trim();
-          if (p.type === "venmo") v = normalizeVenmoHandle(v);
-          if (p.type === "cashapp") v = normalizeCashAppTag(v);
-          if (p.type === "paypal") v = normalizePaypal(v);
-          return {
-            ...p,
-            label: p.label.trim() || prettyLabel(p.type),
-            value: v,
-          };
-        })
-        .filter((p) => p.value);
-
-      // Store phone/email in payments_json too for backward compatibility
-      // but we will NOT render them as payment buttons on the public page.
-      const legacyCompat: LegacyPayments = {
-        phone: phoneNorm,
-        email: normalizeEmail(email) || undefined,
-      };
-
-      const payloadToStore = [
-        ...cleanedPayments.map((p) => ({
-          id: p.id,
-          type: p.type,
-          label: p.label,
-          value: p.value,
-        })),
-      ];
-
-      const { error } = await supabase
-        .from("cards")
-        .update({
-          display_name: computedDisplay,
-          bio: bio.trim() || null,
-          photo_url: photoUrl.trim() || null,
-          pay_label: payLabel.trim() || null,
-
-          // payments_json becomes ordered array, but keep phone/email accessible via legacy keys
-          payments_json: Object.assign(payloadToStore, legacyCompat) as any,
-
-          show_phone: showPhone,
-          show_email: showEmail,
-          show_save_contact: showSaveContact,
-        })
-        .eq("id", cardId);
-
-      if (error) {
-        setMsg(error.message);
-        return;
-      }
-
-      // ✅ No full refresh; Next.js client navigation
-      router.push(returnToCard);
-    } finally {
-      // If navigation happens, this doesn't matter; if it fails, it prevents getting stuck.
-      setSaving(false);
-    }
+  if (!fn) {
+    setMsg("Preferred first name is required.");
+    return;
   }
+
+  const phoneNorm = normalizePhone(phone);
+  if (!phoneNorm) {
+    setMsg("Direct Pay phone number is required.");
+    return;
+  }
+
+  setSaving(true);
+  setMsg("");
+
+  try {
+    // Clean payment values by type
+    const cleanedPayments = payments
+      .map((p) => {
+        let v = p.value.trim();
+        if (p.type === "venmo") v = normalizeVenmoHandle(v);
+        if (p.type === "cashapp") v = normalizeCashAppTag(v);
+        if (p.type === "paypal") v = normalizePaypal(v);
+
+        return {
+          ...p,
+          label: p.label.trim() || prettyLabel(p.type),
+          value: v,
+        };
+      })
+      .filter((p) => p.value);
+
+    // Legacy compatibility object
+    const legacyCompat: LegacyPayments = {
+      phone: phoneNorm,
+      email: normalizeEmail(email) || undefined,
+    };
+
+    const payloadToStore = cleanedPayments.map((p) => ({
+      id: p.id,
+      type: p.type,
+      label: p.label,
+      value: p.value,
+    }));
+
+    const { error } = await supabase
+      .from("cards")
+      .update({
+        display_name: computedDisplay,
+        bio: bio.trim() || null,
+        photo_url: photoUrl.trim() || null,
+        pay_label: payLabel.trim() || null,
+        payments_json: Object.assign(payloadToStore, legacyCompat) as any,
+        show_phone: showPhone,
+        show_email: showEmail,
+        show_save_contact: showSaveContact,
+      })
+      .eq("id", cardId);
+
+    if (error) {
+      throw error;
+    }
+
+    console.log("SAVE SUCCESS — navigating");
+    router.push(returnToCard);
+  } catch (e: any) {
+    console.error("SAVE FAILED:", e);
+    setMsg(e?.message || "Save failed. Check console.");
+  } finally {
+    setSaving(false);
+  }
+}
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
