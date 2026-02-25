@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 type LinkType =
+  | "phone"
+  | "email"
   | "venmo"
   | "cashapp"
   | "paypal"
@@ -11,20 +13,26 @@ type LinkType =
   | "x"
   | "website"
   | "other"
-  | "custom"; // keep for backwards compatibility
+  | "custom";
 
 type LinkItem = {
   id: string;
   type: LinkType;
   label: string;
-  value: string; // handle / username / url text
-  url?: string | null; // optional override
+  value: string;
+  url?: string | null;
 };
+
+function safeStr(v: any) {
+  return typeof v === "string" ? v : "";
+}
 
 function prettyLabel(type: LinkType, fallback?: any) {
   if (typeof fallback === "string" && fallback.trim()) return fallback.trim();
 
   const map: Record<LinkType, string> = {
+    phone: "Phone",
+    email: "Email",
     venmo: "Venmo",
     cashapp: "Cash App",
     paypal: "PayPal",
@@ -45,9 +53,9 @@ function normalizeType(raw: any, label?: any, value?: any): LinkType {
   const v = String(value ?? "").toLowerCase().trim();
   const s = `${t} ${l} ${v}`;
 
-  // core
-  if (t === "phone" || s.includes("phone")) return "other"; // never keep phone in links
-  if (t === "email" || s.includes("email")) return "other"; // never keep email in links
+  // ✅ allow phone/email as ordered markers
+  if (t === "phone" || s.includes("phone")) return "phone";
+  if (t === "email" || s.includes("email")) return "email";
 
   // payments
   if (t.includes("venmo") || s.includes("venmo")) return "venmo";
@@ -71,14 +79,7 @@ function normalizeType(raw: any, label?: any, value?: any): LinkType {
   return "other";
 }
 
-function safeStr(v: any) {
-  return typeof v === "string" ? v : "";
-}
-
 function normalizePayments(paymentsJson: any) {
-  // Returned shape:
-  // { phone: string|null, email: string|null, links: LinkItem[] }
-
   const safeEmpty = {
     phone: null as string | null,
     email: null as string | null,
@@ -104,12 +105,6 @@ function normalizePayments(paymentsJson: any) {
 
         const type = normalizeType(x.type ?? x.kind ?? x.label, x.label, value);
 
-        // strip phone/email from links if they accidentally got saved there
-        if (type === "other") {
-          const maybe = String(x.type ?? x.kind ?? x.label ?? "").toLowerCase();
-          if (maybe.includes("phone") || maybe.includes("email")) return null;
-        }
-
         const label =
           typeof x.label === "string" && x.label.trim()
             ? x.label.trim()
@@ -117,7 +112,7 @@ function normalizePayments(paymentsJson: any) {
 
         return { id, type, label, value, url } as LinkItem;
       })
-      .filter((x: LinkItem | null) => !!x && (!!x.value || !!x.url)) as LinkItem[];
+      .filter((x: LinkItem) => !!x.value || !!x.url || x.type === "phone" || x.type === "email");
 
     return { phone: phone || null, email: email || null, links };
   }
@@ -132,7 +127,6 @@ function normalizePayments(paymentsJson: any) {
         const url = typeof x.url === "string" ? x.url.trim() : null;
 
         const type = normalizeType(x.type ?? x.kind ?? x.label, x.label, value);
-
         const label =
           typeof x.label === "string" && x.label.trim()
             ? x.label.trim()
@@ -140,7 +134,7 @@ function normalizePayments(paymentsJson: any) {
 
         return { id, type, label, value, url } as LinkItem;
       })
-      .filter((x: LinkItem) => !!x.value || !!x.url);
+      .filter((x: LinkItem) => !!x.value || !!x.url || x.type === "phone" || x.type === "email");
 
     return { phone: null, email: null, links };
   }
@@ -211,13 +205,8 @@ export async function GET(req: Request) {
       );
     }
 
-    if (!data) {
-      return NextResponse.json({ error: "Card not found" }, { status: 404 });
-    }
-
-    if (!data.owner_user_id) {
-      return NextResponse.json({ error: "Card is unclaimed" }, { status: 403 });
-    }
+    if (!data) return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    if (!data.owner_user_id) return NextResponse.json({ error: "Card is unclaimed" }, { status: 403 });
 
     const normalized = normalizePayments((data as any).payments_json);
 
@@ -228,7 +217,6 @@ export async function GET(req: Request) {
       photoUrl: (data as any).photo_url ?? null,
       payLabel: (data as any).pay_label ?? null,
 
-      // ✅ camelCase for /c
       showPhone: (data as any).show_phone ?? true,
       showEmail: (data as any).show_email ?? true,
       showSaveContact: (data as any).show_save_contact ?? true,
