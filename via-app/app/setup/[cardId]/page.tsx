@@ -4,11 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type PaymentItem = {
+type LinkType =
+  | "instagram"
+  | "tiktok"
+  | "youtube"
+  | "x"
+  | "website"
+  | "other";
+
+type LinkItem = {
   id: string;
-  type: "venmo" | "cashapp" | "paypal" | "custom";
-  label: string;
-  value: string;
+  type: LinkType;
+  label?: string; // only for "other"
+  value: string;  // handle or url
 };
 
 type CardsRow = {
@@ -45,82 +53,92 @@ function normalizeEmail(input: string) {
   return input.trim();
 }
 
-function coerceToStatePayments(p: any): {
+function normalizeHandle(input: string) {
+  return input.trim().replace(/^@/, "");
+}
+
+function coerceToState(p: any): {
   phone: string;
   email: string;
-  links: PaymentItem[];
+  venmo: string;
+  cashapp: string;
+  paypal: string;
+  links: LinkItem[];
 } {
-  // Preferred: { phone, email, links: [] }
-  if (p && typeof p === "object" && Array.isArray(p.links)) {
-    return {
-      phone: typeof p.phone === "string" ? p.phone : "",
-      email: typeof p.email === "string" ? p.email : "",
-      links: p.links
-        .map((x: any) => ({
-          id: String(x?.id ?? uid()),
-          type:
-            (String(x?.type ?? "custom") as PaymentItem["type"]) || "custom",
-          label: String(x?.label ?? "Payment"),
-          value: String(x?.value ?? ""),
-        }))
-        .filter((x: PaymentItem) => x.value.trim()),
-    };
-  }
+  const base = {
+    phone: "",
+    email: "",
+    venmo: "",
+    cashapp: "",
+    paypal: "",
+    links: [] as LinkItem[],
+  };
 
-  // Legacy object: { venmo, cashapp, paypal, phone, email }
+  if (!p) return base;
+
+  // preferred: object with phone/email + venmo/cashapp/paypal + links[]
   if (p && typeof p === "object" && !Array.isArray(p)) {
-    const links: PaymentItem[] = [];
+    const phone = typeof p.phone === "string" ? p.phone : "";
+    const email = typeof p.email === "string" ? p.email : "";
 
-    if (typeof p.venmo === "string" && p.venmo.trim()) {
-      links.push({
-        id: uid(),
-        type: "venmo",
-        label: "Venmo",
-        value: normalizeVenmoHandle(p.venmo),
-      });
-    }
-    if (typeof p.cashapp === "string" && p.cashapp.trim()) {
-      links.push({
-        id: uid(),
-        type: "cashapp",
-        label: "Cash App",
-        value: normalizeCashAppTag(p.cashapp),
-      });
-    }
-    if (typeof p.paypal === "string" && p.paypal.trim()) {
-      links.push({
-        id: uid(),
-        type: "paypal",
-        label: "PayPal",
-        value: normalizePaypal(p.paypal),
-      });
-    }
+    const venmo = typeof p.venmo === "string" ? p.venmo : "";
+    const cashapp = typeof p.cashapp === "string" ? p.cashapp : "";
+    const paypal = typeof p.paypal === "string" ? p.paypal : "";
+
+  const links: LinkItem[] = Array.isArray(p.links)
+  ? (p.links as any[])
+      .map((x: any): LinkItem => ({
+        id: String(x?.id ?? uid()),
+        type: (String(x?.type ?? "other") as LinkType) || "other",
+        label: x?.label ? String(x.label) : undefined,
+        value: String(x?.value ?? ""), // ✅ always a string
+      }))
+      .filter((x: LinkItem) => x.value.trim().length > 0) // ✅ x is typed
+  : [];
+
+    // If older data shoved payment items into links, ignore those and only keep socials
+    const socialOnly = links.filter(
+      (x) => !["venmo", "cashapp", "paypal"].includes(String(x.type))
+    );
 
     return {
-      phone: typeof p.phone === "string" ? p.phone : "",
-      email: typeof p.email === "string" ? p.email : "",
-      links,
+      phone,
+      email,
+      venmo,
+      cashapp,
+      paypal,
+      links: socialOnly,
     };
   }
 
-  // Array format (rare): treat as ordered links only
+  // array format: treat as links only
   if (Array.isArray(p)) {
     return {
-      phone: "",
-      email: "",
+      ...base,
       links: p
         .map((x: any) => ({
           id: String(x?.id ?? uid()),
-          type:
-            (String(x?.type ?? "custom") as PaymentItem["type"]) || "custom",
-          label: String(x?.label ?? "Payment"),
+          type: (String(x?.type ?? "other") as LinkType) || "other",
+          label: x?.label ? String(x.label) : undefined,
           value: String(x?.value ?? ""),
         }))
-        .filter((x: PaymentItem) => x.value.trim()),
+        .filter((x) => x.value.trim()),
     };
   }
 
-  return { phone: "", email: "", links: [] };
+  return base;
+}
+
+function linkTypeLabel(t: LinkType) {
+  const map: Record<LinkType, string> = {
+    instagram: "Instagram",
+    tiktok: "TikTok",
+    youtube: "YouTube",
+    x: "X",
+    website: "Website",
+    other: "Other",
+  };
+  return map[t];
 }
 
 export default function SetupPage() {
@@ -141,14 +159,22 @@ export default function SetupPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
-  const [payments, setPayments] = useState<PaymentItem[]>([]);
+  // core payment methods
+  const [venmo, setVenmo] = useState("");
+  const [cashapp, setCashapp] = useState("");
+  const [paypal, setPaypal] = useState("");
+
+  // social/personal links (ordered)
+  const [links, setLinks] = useState<LinkItem[]>([]);
 
   const [showPhone, setShowPhone] = useState(true);
   const [showEmail, setShowEmail] = useState(true);
   const [showSaveContact, setShowSaveContact] = useState(true);
 
-  const [customLabel, setCustomLabel] = useState("");
-  const [customValue, setCustomValue] = useState("");
+  // add-link controls
+  const [newLinkType, setNewLinkType] = useState<LinkType>("instagram");
+  const [newLinkLabel, setNewLinkLabel] = useState("");
+  const [newLinkValue, setNewLinkValue] = useState("");
 
   const returnToCard = useMemo(() => `/c/${cardId}`, [cardId]);
 
@@ -218,10 +244,13 @@ export default function SetupPage() {
       setPhotoUrl(row.photo_url ?? "");
       setPayLabel(row.pay_label ?? "");
 
-      const parsed = coerceToStatePayments(row.payments_json);
+      const parsed = coerceToState(row.payments_json);
       setPhone(parsed.phone ?? "");
       setEmail(parsed.email ?? "");
-      setPayments(parsed.links ?? []);
+      setVenmo(parsed.venmo ?? "");
+      setCashapp(parsed.cashapp ?? "");
+      setPaypal(parsed.paypal ?? "");
+      setLinks(parsed.links ?? []);
 
       setShowPhone(row.show_phone ?? true);
       setShowEmail(row.show_email ?? true);
@@ -236,8 +265,8 @@ export default function SetupPage() {
     };
   }, [cardId, returnToCard]);
 
-  function movePayment(id: string, dir: -1 | 1) {
-    setPayments((prev) => {
+  function moveLink(id: string, dir: -1 | 1) {
+    setLinks((prev) => {
       const i = prev.findIndex((p) => p.id === id);
       if (i < 0) return prev;
       const j = i + dir;
@@ -250,40 +279,38 @@ export default function SetupPage() {
     });
   }
 
-  function updatePayment(id: string, patch: Partial<PaymentItem>) {
-    setPayments((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...patch } : p))
-    );
+  function updateLink(id: string, patch: Partial<LinkItem>) {
+    setLinks((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
 
-  function removePayment(id: string) {
-    setPayments((prev) => prev.filter((p) => p.id !== id));
+  function removeLink(id: string) {
+    setLinks((prev) => prev.filter((p) => p.id !== id));
   }
 
-  function addPreset(type: PaymentItem["type"]) {
-    const label =
-      type === "venmo"
-        ? "Venmo"
-        : type === "cashapp"
-        ? "Cash App"
-        : type === "paypal"
-        ? "PayPal"
-        : "Payment";
-    setPayments((prev) => [...prev, { id: uid(), type, label, value: "" }]);
-  }
+  function addLink() {
+    const v = newLinkValue.trim();
+    if (!v) return;
 
-  function addCustomPayment() {
-    const l = customLabel.trim();
-    const v = customValue.trim();
-    if (!l || !v) return;
+    if (newLinkType === "other") {
+      const l = newLinkLabel.trim();
+      if (!l) return;
+      setLinks((prev) => [
+        ...prev,
+        { id: uid(), type: "other", label: l, value: v },
+      ]);
+      setNewLinkLabel("");
+      setNewLinkValue("");
+      setNewLinkType("instagram");
+      return;
+    }
 
-    setPayments((prev) => [
+    setLinks((prev) => [
       ...prev,
-      { id: uid(), type: "custom", label: l, value: v },
+      { id: uid(), type: newLinkType, value: v },
     ]);
 
-    setCustomLabel("");
-    setCustomValue("");
+    setNewLinkValue("");
+    setNewLinkType("instagram");
   }
 
   async function save() {
@@ -306,39 +333,37 @@ export default function SetupPage() {
     setMsg("");
 
     try {
-      const cleanedLinks = payments
-        .map((p) => {
-          let v = p.value.trim();
-          if (p.type === "venmo") v = normalizeVenmoHandle(v);
-          if (p.type === "cashapp") v = normalizeCashAppTag(v);
-          if (p.type === "paypal") v = normalizePaypal(v);
+      const venmoClean = normalizeVenmoHandle(venmo || "");
+      const cashappClean = normalizeCashAppTag(cashapp || "");
+      const paypalClean = normalizePaypal(paypal || "");
+
+      const cleanedLinks = links
+        .map((l) => {
+          const value = l.value.trim();
+          const type = l.type;
+
+          // normalize handles for socials
+          const normalizedValue =
+            type === "instagram" || type === "tiktok" || type === "x"
+              ? normalizeHandle(value)
+              : value;
+
           return {
-            ...p,
-            label: p.label.trim() || "Payment",
-            value: v,
+            id: l.id,
+            type: l.type,
+            label: l.type === "other" ? (l.label?.trim() || "Link") : undefined,
+            value: normalizedValue,
           };
         })
-        .filter((p) => p.value);
-
-      // ✅ LEGACY-FRIENDLY SHAPE (passes DB constraints that expect venmo/cashapp/paypal keys)
-      const venmo = cleanedLinks.find((x) => x.type === "venmo")?.value ?? "";
-      const cashapp =
-        cleanedLinks.find((x) => x.type === "cashapp")?.value ?? "";
-      const paypal = cleanedLinks.find((x) => x.type === "paypal")?.value ?? "";
+        .filter((l) => l.value);
 
       const payments_json: any = {
-        venmo,
-        cashapp,
-        paypal,
+        venmo: venmoClean,
+        cashapp: cashappClean,
+        paypal: paypalClean,
         phone: phoneNorm,
         email: normalizeEmail(email) || "",
-        // keep modern list too (so /c can use links if needed)
-        links: cleanedLinks.map((p) => ({
-          id: p.id,
-          type: p.type,
-          label: p.label,
-          value: p.value,
-        })),
+        links: cleanedLinks,
       };
 
       const { error } = await supabase
@@ -400,9 +425,7 @@ export default function SetupPage() {
             </div>
           ) : (
             <div className="mt-10 space-y-8">
-              {!!msg && (
-                <p className="text-center text-sm text-red-400">{msg}</p>
-              )}
+              {!!msg && <p className="text-center text-sm text-red-400">{msg}</p>}
 
               {/* BASICS */}
               <div className="space-y-4">
@@ -493,49 +516,137 @@ export default function SetupPage() {
                   />
                 </div>
 
-                <div className="pt-2">
-                  <div className="text-xs tracking-[0.35em] text-white/45 mb-3">
-                    PAYMENT LINKS (ORDERED)
+                {/* Core payment methods (fixed fields) */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                  <div>
+                    <label className="block text-xs tracking-wider text-white/60 mb-2">
+                      VENMO (OPTIONAL)
+                    </label>
+                    <input
+                      value={venmo}
+                      onChange={(e) => setVenmo(e.target.value)}
+                      placeholder="@username"
+                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                    />
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => addPreset("venmo")}
-                      className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
-                    >
-                      + Venmo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addPreset("cashapp")}
-                      className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
-                    >
-                      + Cash App
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addPreset("paypal")}
-                      className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
-                    >
-                      + PayPal
-                    </button>
+                  <div>
+                    <label className="block text-xs tracking-wider text-white/60 mb-2">
+                      CASH APP (OPTIONAL)
+                    </label>
+                    <input
+                      value={cashapp}
+                      onChange={(e) => setCashapp(e.target.value)}
+                      placeholder="$cashtag"
+                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                    />
                   </div>
 
-                  <div className="mt-3 space-y-3">
-                    {payments.map((p, idx) => (
+                  <div>
+                    <label className="block text-xs tracking-wider text-white/60 mb-2">
+                      PAYPAL (OPTIONAL)
+                    </label>
+                    <input
+                      value={paypal}
+                      onChange={(e) => setPaypal(e.target.value)}
+                      placeholder="paypal.me/..."
+                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* LINKS */}
+              <div className="space-y-4">
+                <div className="text-xs tracking-[0.35em] text-white/45">
+                  LINKS (SOCIAL / PERSONAL)
+                </div>
+
+                <div className="rounded-2xl border border-white/12 bg-white/5 p-4">
+                  <div className="text-sm font-medium text-white/90">
+                    Add Link
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-xs tracking-wider text-white/55 mb-2">
+                        TYPE
+                      </label>
+                      <select
+                        value={newLinkType}
+                        onChange={(e) => setNewLinkType(e.target.value as LinkType)}
+                        className="w-full rounded-2xl border border-white/12 bg-[#121214] px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                      >
+                        <option value="instagram">Instagram</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="x">X</option>
+                        <option value="website">Website</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+
+                    {newLinkType === "other" ? (
+                      <div>
+                        <label className="block text-xs tracking-wider text-white/55 mb-2">
+                          LABEL
+                        </label>
+                        <input
+                          value={newLinkLabel}
+                          onChange={(e) => setNewLinkLabel(e.target.value)}
+                          placeholder="e.g., Portfolio"
+                          className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                        />
+                      </div>
+                    ) : (
+                      <div className="hidden sm:block" />
+                    )}
+
+                    <div className={newLinkType === "other" ? "" : "sm:col-span-2"}>
+                      <label className="block text-xs tracking-wider text-white/55 mb-2">
+                        HANDLE OR URL
+                      </label>
+                      <input
+                        value={newLinkValue}
+                        onChange={(e) => setNewLinkValue(e.target.value)}
+                        placeholder={
+                          newLinkType === "website"
+                            ? "example.com"
+                            : newLinkType === "youtube"
+                            ? "@channel or URL"
+                            : "@handle"
+                        }
+                        className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addLink}
+                    className="mt-3 w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {links.length > 0 && (
+                  <div className="space-y-3">
+                    {links.map((l, idx) => (
                       <div
-                        key={p.id}
+                        key={l.id}
                         className="rounded-2xl border border-white/12 bg-white/5 p-4"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-medium text-white/90">
-                            {p.label || "Payment"}
+                            {l.type === "other"
+                              ? (l.label?.trim() || "Other")
+                              : linkTypeLabel(l.type)}
                           </div>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => movePayment(p.id, -1)}
+                              onClick={() => moveLink(l.id, -1)}
                               disabled={idx === 0}
                               className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
                             >
@@ -543,15 +654,15 @@ export default function SetupPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => movePayment(p.id, 1)}
-                              disabled={idx === payments.length - 1}
+                              onClick={() => moveLink(l.id, 1)}
+                              disabled={idx === links.length - 1}
                               className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
                             >
                               Down
                             </button>
                             <button
                               type="button"
-                              onClick={() => removePayment(p.id)}
+                              onClick={() => removeLink(l.id)}
                               className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-red-300 hover:bg-white/10"
                             >
                               Remove
@@ -560,27 +671,38 @@ export default function SetupPage() {
                         </div>
 
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div>
-                            <label className="block text-xs tracking-wider text-white/55 mb-2">
-                              LABEL
-                            </label>
-                            <input
-                              value={p.label}
-                              onChange={(e) =>
-                                updatePayment(p.id, { label: e.target.value })
-                              }
-                              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                            />
-                          </div>
+                          {l.type === "other" ? (
+                            <div>
+                              <label className="block text-xs tracking-wider text-white/55 mb-2">
+                                LABEL
+                              </label>
+                              <input
+                                value={l.label ?? ""}
+                                onChange={(e) =>
+                                  updateLink(l.id, { label: e.target.value })
+                                }
+                                className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs tracking-wider text-white/55 mb-2">
+                                TYPE
+                              </label>
+                              <div className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/70">
+                                {linkTypeLabel(l.type)}
+                              </div>
+                            </div>
+                          )}
 
                           <div>
                             <label className="block text-xs tracking-wider text-white/55 mb-2">
-                              USERNAME OR LINK
+                              HANDLE OR URL
                             </label>
                             <input
-                              value={p.value}
+                              value={l.value}
                               onChange={(e) =>
-                                updatePayment(p.id, { value: e.target.value })
+                                updateLink(l.id, { value: e.target.value })
                               }
                               className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
                             />
@@ -589,39 +711,11 @@ export default function SetupPage() {
                       </div>
                     ))}
                   </div>
+                )}
 
-                  <div className="mt-4 rounded-2xl border border-white/12 bg-white/5 p-4">
-                    <div className="text-sm font-medium text-white/90">
-                      Add Custom Link
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <input
-                        placeholder="Label (e.g., Apple Pay)"
-                        value={customLabel}
-                        onChange={(e) => setCustomLabel(e.target.value)}
-                        className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                      />
-                      <input
-                        placeholder="Username or link"
-                        value={customValue}
-                        onChange={(e) => setCustomValue(e.target.value)}
-                        className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addCustomPayment}
-                      className="mt-3 w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  <p className="mt-3 text-xs text-white/40 tracking-wide">
-                    Tip: reorder with Up/Down. The top link shows first on your
-                    card.
-                  </p>
-                </div>
+                <p className="text-xs text-white/40 tracking-wide">
+                  Tip: reorder with Up/Down. The top link shows first on your card.
+                </p>
               </div>
 
               {/* PRIVACY */}

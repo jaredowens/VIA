@@ -3,8 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Mail, Phone } from "lucide-react";
-import { siVenmo, siPaypal, siCashapp } from "simple-icons/icons";
+import { Mail, Phone, Globe } from "lucide-react";
+import {
+  siVenmo,
+  siPaypal,
+  siCashapp,
+  siInstagram,
+  siTiktok,
+  siYoutube,
+  siX,
+} from "simple-icons/icons";
 
 type ViewStatus = "checking" | "unclaimed" | "claimed" | "notfound" | "error";
 
@@ -16,19 +24,27 @@ type PublicCardPayload = {
   payLabel: string | null;
   payments: any;
 
-  // optional: add these to /api/card-public later
   showPhone?: boolean;
   showEmail?: boolean;
   showSaveContact?: boolean;
 };
 
-type PaymentType = "venmo" | "cashapp" | "paypal" | "other";
+type LinkType =
+  | "venmo"
+  | "cashapp"
+  | "paypal"
+  | "instagram"
+  | "tiktok"
+  | "youtube"
+  | "x"
+  | "website"
+  | "other";
 
-type PaymentLinkItem = {
-  key?: string;
+type LinkItem = {
+  id?: string;
   type?: string;
-  label: string;
-  value: string;
+  label?: string;
+  value?: string;
   url?: string;
 };
 
@@ -36,71 +52,17 @@ function digitsOnlyPhone(value: string) {
   return value.replace(/[^\d+]/g, "");
 }
 
-function detectType(it: PaymentLinkItem): PaymentType {
-  const k = (it.key || it.type || "").toLowerCase();
-  const l = (it.label || "").toLowerCase();
-
-  if (k.includes("venmo") || l.includes("venmo")) return "venmo";
-  if (k.includes("cash") || l.includes("cash")) return "cashapp";
-  if (k.includes("paypal") || l.includes("paypal")) return "paypal";
-  return "other";
-}
-
-function normalizePayments(payments: any): PaymentLinkItem[] {
-  if (!payments) return [];
-
-  // New recommended shape: { phone, email, links: [...] }
-  if (typeof payments === "object" && Array.isArray(payments.links)) {
-    return payments.links
-      .map((x: any) => ({
-        key: x?.type ? String(x.type) : undefined,
-        type: x?.type ? String(x.type) : undefined,
-        label: String(x?.label ?? x?.type ?? "Payment"),
-        value: String(x?.value ?? ""),
-        url: x?.url ? String(x.url) : undefined,
-      }))
-      .filter((x: PaymentLinkItem) => x.value || x.url);
-  }
-
-  // If array (ordered list)
-  if (Array.isArray(payments)) {
-    return payments
-      .map((x: any) => ({
-        key: x?.type ? String(x.type) : undefined,
-        type: x?.type ? String(x.type) : undefined,
-        label: String(x?.label ?? x?.type ?? "Payment"),
-        value: String(x?.value ?? ""),
-        url: x?.url ? String(x.url) : undefined,
-      }))
-      .filter((x) => x.value || x.url);
-  }
-
-  // Legacy object format: { venmo, cashapp, paypal, phone, email }
-  if (typeof payments === "object") {
-    return Object.entries(payments)
-      .map(([k, v]) => {
-        if (typeof v === "string") {
-          return { key: k, type: k, label: prettyLabel(k), value: v };
-        }
-        return {
-          key: k,
-          type: k,
-          label: prettyLabel(k),
-          value: String((v as any)?.value ?? ""),
-          url: (v as any)?.url ? String((v as any).url) : undefined,
-        };
-      })
-      .filter((x) => x.value || x.url);
-  }
-
-  return [];
-}
-
 function prettyLabel(key: string) {
   const map: Record<string, string> = {
     venmo: "Venmo",
     cashapp: "Cash App",
     paypal: "PayPal",
+    instagram: "Instagram",
+    tiktok: "TikTok",
+    youtube: "YouTube",
+    x: "X",
+    website: "Website",
+    other: "Link",
   };
   return (
     map[key.toLowerCase()] ??
@@ -108,20 +70,120 @@ function prettyLabel(key: string) {
   );
 }
 
-function buildLink(
-  label: string,
-  value: string,
-  url?: string
-): { href: string; fallback?: string } {
-  if (url) return { href: url };
+function normalizeType(t?: string, label?: string): LinkType {
+  const raw = String(t ?? "").toLowerCase().trim();
+  const l = String(label ?? "").toLowerCase().trim();
+
+  const s = `${raw} ${l}`;
+
+  if (s.includes("venmo")) return "venmo";
+  if (s.includes("cash")) return "cashapp";
+  if (s.includes("paypal")) return "paypal";
+
+  if (s.includes("instagram")) return "instagram";
+  if (s.includes("tiktok")) return "tiktok";
+  if (s.includes("youtube")) return "youtube";
+  if (s === "x" || s.includes("twitter") || s.includes(" x ")) return "x";
+  if (s.includes("website") || s.includes("site") || s.includes("web"))
+    return "website";
+
+  return "other";
+}
+
+function normalizeLinks(payments: any): {
+  phone: string;
+  email: string;
+  methods: Array<{ type: LinkType; label: string; value: string; url?: string }>;
+  links: Array<{ type: LinkType; label: string; value: string; url?: string }>;
+} {
+  const phone =
+    payments && typeof payments === "object" && typeof payments.phone === "string"
+      ? payments.phone.trim()
+      : "";
+  const email =
+    payments && typeof payments === "object" && typeof payments.email === "string"
+      ? payments.email.trim()
+      : "";
+
+  const out: Array<{ type: LinkType; label: string; value: string; url?: string }> =
+    [];
+
+  if (!payments) {
+    return { phone, email, methods: [], links: [] };
+  }
+
+  // New shape: { phone, email, links: [...] }
+  if (typeof payments === "object" && Array.isArray(payments.links)) {
+    for (const x of payments.links as any[]) {
+      const t = normalizeType(x?.type, x?.label);
+      const label = String(x?.label ?? prettyLabel(String(x?.type ?? "other")));
+      const value = String(x?.value ?? "").trim();
+      const url = x?.url ? String(x.url) : undefined;
+      if (value || url) out.push({ type: t, label, value, url });
+    }
+  } else if (Array.isArray(payments)) {
+    // Array format
+    for (const x of payments as any[]) {
+      const t = normalizeType(x?.type, x?.label);
+      const label = String(x?.label ?? prettyLabel(String(x?.type ?? "other")));
+      const value = String(x?.value ?? "").trim();
+      const url = x?.url ? String(x.url) : undefined;
+      if (value || url) out.push({ type: t, label, value, url });
+    }
+  } else if (typeof payments === "object") {
+    // Legacy object: { venmo, cashapp, paypal, ... }
+    for (const [k, v] of Object.entries(payments)) {
+      if (k === "phone" || k === "email" || k === "links") continue;
+      if (typeof v !== "string") continue;
+      const value = v.trim();
+      if (!value) continue;
+      const t = normalizeType(k, k);
+      out.push({ type: t, label: prettyLabel(k), value });
+    }
+  }
+
+  // Also include top-level venmo/cashapp/paypal even when links[] exists,
+  // because your setup saves both.
+  if (payments && typeof payments === "object") {
+    const v = typeof payments.venmo === "string" ? payments.venmo.trim() : "";
+    const c =
+      typeof payments.cashapp === "string" ? payments.cashapp.trim() : "";
+    const p = typeof payments.paypal === "string" ? payments.paypal.trim() : "";
+    if (v) out.unshift({ type: "venmo", label: "Venmo", value: v });
+    if (c) out.unshift({ type: "cashapp", label: "Cash App", value: c });
+    if (p) out.unshift({ type: "paypal", label: "PayPal", value: p });
+  }
+
+  const methods = out.filter((x) =>
+    x.type === "venmo" || x.type === "cashapp" || x.type === "paypal"
+  );
+
+  const links = out.filter(
+    (x) => !(x.type === "venmo" || x.type === "cashapp" || x.type === "paypal")
+  );
+
+  return { phone, email, methods, links };
+}
+
+function ensureHttp(v: string) {
+  const t = (v ?? "").trim();
+  if (!t) return "";
+  if (/^https?:\/\//i.test(t)) return t;
+  if (t.includes(".") && !t.includes(" ")) return `https://${t}`;
+  return t;
+}
+
+function buildHrefByType(type: LinkType, label: string, value: string, url?: string) {
+  if (url) return { href: url, fallback: undefined as string | undefined };
 
   const v = (value ?? "").trim();
-  if (!v) return { href: "" };
-  if (/^https?:\/\//i.test(v)) return { href: v };
+  if (!v) return { href: "", fallback: undefined };
 
-  const lower = label.toLowerCase();
+  // If user pasted a real URL, just use it.
+  if (/^https?:\/\//i.test(v)) return { href: v, fallback: undefined };
 
-  if (lower.includes("venmo")) {
+  // PAYMENTS
+  if (type === "venmo") {
     const handle = v.startsWith("@") ? v.slice(1) : v;
     const web = `https://venmo.com/${encodeURIComponent(handle)}`;
     const deep = `venmo://paycharge?txn=pay&recipients=${encodeURIComponent(
@@ -130,25 +192,52 @@ function buildLink(
     return { href: deep, fallback: web };
   }
 
-  if (lower.includes("cash")) {
+  if (type === "cashapp") {
     const tag = v.startsWith("$") ? v.slice(1) : v;
-    return { href: `https://cash.app/${encodeURIComponent(tag)}` };
+    return { href: `https://cash.app/${encodeURIComponent(tag)}`, fallback: undefined };
   }
 
-  if (lower.includes("paypal")) {
+  if (type === "paypal") {
     const user = v.replace(/^@/, "");
     if (/paypal\.me\//i.test(user) || /^https?:\/\//i.test(user)) {
-      return { href: user.startsWith("http") ? user : `https://${user}` };
+      return { href: user.startsWith("http") ? user : `https://${user}`, fallback: undefined };
     }
-    return { href: `https://www.paypal.me/${encodeURIComponent(user)}` };
+    return { href: `https://www.paypal.me/${encodeURIComponent(user)}`, fallback: undefined };
   }
 
-  // custom: if it looks like a link, open it
-  if (/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(v)) return { href: v };
-  if (v.includes(".") && !v.includes(" ")) return { href: `https://${v}` };
+  // SOCIAL / LINKS
+  if (type === "instagram") {
+    const h = v.replace(/^@/, "");
+    return { href: `https://instagram.com/${encodeURIComponent(h)}`, fallback: undefined };
+  }
 
-  // otherwise copy-only fallback
-  return { href: "" };
+  if (type === "tiktok") {
+    const h = v.replace(/^@/, "");
+    return { href: `https://www.tiktok.com/@${encodeURIComponent(h)}`, fallback: undefined };
+  }
+
+  if (type === "youtube") {
+    // support @handle, channel url, or full url
+    const t = v.trim();
+    if (t.startsWith("@")) {
+      return { href: `https://www.youtube.com/${encodeURIComponent(t)}`, fallback: undefined };
+    }
+    return { href: ensureHttp(t), fallback: undefined };
+  }
+
+  if (type === "x") {
+    const h = v.replace(/^@/, "");
+    return { href: `https://x.com/${encodeURIComponent(h)}`, fallback: undefined };
+  }
+
+  if (type === "website") {
+    return { href: ensureHttp(v), fallback: undefined };
+  }
+
+  // other: open if it looks like a domain; else copy-only fallback
+  const maybe = ensureHttp(v);
+  if (maybe.startsWith("http")) return { href: maybe, fallback: undefined };
+  return { href: "", fallback: undefined };
 }
 
 async function openWithFallback(href: string, fallback?: string) {
@@ -187,10 +276,17 @@ function BrandSvg({
   );
 }
 
-function Icon({ type }: { type: PaymentType }) {
+function Icon({ type }: { type: LinkType }) {
   if (type === "venmo") return <BrandSvg path={siVenmo.path} />;
   if (type === "cashapp") return <BrandSvg path={siCashapp.path} />;
   if (type === "paypal") return <BrandSvg path={siPaypal.path} />;
+
+  if (type === "instagram") return <BrandSvg path={siInstagram.path} />;
+  if (type === "tiktok") return <BrandSvg path={siTiktok.path} />;
+  if (type === "youtube") return <BrandSvg path={siYoutube.path} />;
+  if (type === "x") return <BrandSvg path={siX.path} />;
+  if (type === "website") return <Globe className="h-5 w-5" />;
+
   return null;
 }
 
@@ -401,37 +497,10 @@ export default function CardPage() {
     };
   }, [cardId]);
 
-  // Payments list (ordered if payments.links or array)
-  const paymentButtons = useMemo(() => {
-    const items = normalizePayments(card?.payments);
+  const normalized = useMemo(() => normalizeLinks(card?.payments), [card?.payments]);
 
-    // Filter OUT phone/email if they exist in legacy object
-    return items.filter((x) => {
-      const t = (x.key || x.type || "").toLowerCase();
-      if (t === "phone" || t === "email") return false;
-      const l = (x.label || "").toLowerCase();
-      if (l.includes("phone") || l.includes("direct")) return false;
-      if (l.includes("email")) return false;
-      return true;
-    });
-  }, [card?.payments]);
-
-  // Contact rails
-  const phoneValue = useMemo(() => {
-    const p = card?.payments;
-    if (p && typeof p === "object" && typeof p.phone === "string") {
-      return p.phone.trim();
-    }
-    return "";
-  }, [card?.payments]);
-
-  const emailValue = useMemo(() => {
-    const p = card?.payments;
-    if (p && typeof p === "object" && typeof p.email === "string") {
-      return p.email.trim();
-    }
-    return "";
-  }, [card?.payments]);
+  const phoneValue = normalized.phone;
+  const emailValue = normalized.email;
 
   const showPhone = card?.showPhone ?? true;
   const showEmail = card?.showEmail ?? true;
@@ -548,24 +617,26 @@ export default function CardPage() {
                 </div>
 
                 <div className="mt-10 space-y-4">
-                  {paymentButtons.length > 0 && (
+                  {/* PAYMENT METHODS */}
+                  {normalized.methods.length > 0 && (
                     <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
                       PAYMENT METHODS
                     </div>
                   )}
 
-                  {paymentButtons.map((it, idx) => {
-                    const { href, fallback } = buildLink(
+                  {normalized.methods.map((it, idx) => {
+                    const type = it.type;
+                    const { href, fallback } = buildHrefByType(
+                      type,
                       it.label,
                       it.value,
                       it.url
                     );
                     const text = it.value || it.url || "";
-                    const type = detectType(it);
 
                     return (
                       <button
-                        key={`${it.key ?? it.label}-${idx}`}
+                        key={`method-${type}-${idx}`}
                         onClick={async () => {
                           if (href) {
                             await openWithFallback(href, fallback);
@@ -602,6 +673,72 @@ export default function CardPage() {
                       </button>
                     );
                   })}
+
+                  {/* LINKS */}
+                  {normalized.links.length > 0 && (
+                    <div className="pt-2">
+                      <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
+                        LINKS
+                      </div>
+
+                      <div className="space-y-3">
+                        {normalized.links.map((it, idx) => {
+                          const type = it.type;
+                          const label =
+                            type === "other"
+                              ? (it.label?.trim() || "Link")
+                              : prettyLabel(type);
+
+                          const { href } = buildHrefByType(
+                            type,
+                            label,
+                            it.value,
+                            it.url
+                          );
+
+                          const preview = it.value || it.url || "";
+
+                          return (
+                            <button
+                              key={`link-${type}-${idx}`}
+                              onClick={() => {
+                                // Links should OPEN on tap (always).
+                                if (href) openWithFallback(href);
+                                else if (preview) copyText(preview);
+                              }}
+                              onContextMenu={(e) => {
+                                // Optional: long-press copy for convenience
+                                e.preventDefault();
+                                if (href) copyText(href);
+                                else if (preview) copyText(preview);
+                              }}
+                              className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+                            >
+                              <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                                <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                              </span>
+
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                                    <Icon type={type} />
+                                  </div>
+                                  <span>{label}</span>
+                                </div>
+                                <span className="text-white/60 text-sm">
+                                  {href ? "Open" : "Copy"}
+                                </span>
+                              </div>
+
+                              <div className="mt-1 text-left text-sm text-white/55 break-all">
+                                {href || preview}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Bottom contact rails */}
                   {showPhone && !!phoneValue && (
