@@ -29,7 +29,9 @@ type PublicCardPayload = {
   showSaveContact?: boolean;
 };
 
-type LinkType =
+type ActionType =
+  | "phone"
+  | "email"
   | "venmo"
   | "cashapp"
   | "paypal"
@@ -40,7 +42,7 @@ type LinkType =
   | "website"
   | "other";
 
-type LinkItem = {
+type ActionItem = {
   id?: string;
   type?: string;
   label?: string;
@@ -52,117 +54,40 @@ function digitsOnlyPhone(value: string) {
   return value.replace(/[^\d+]/g, "");
 }
 
-function prettyLabel(key: string) {
-  const map: Record<string, string> = {
-    venmo: "Venmo",
-    cashapp: "Cash App",
-    paypal: "PayPal",
-    instagram: "Instagram",
-    tiktok: "TikTok",
-    youtube: "YouTube",
-    x: "X",
-    website: "Website",
-    other: "Link",
-  };
-  return (
-    map[key.toLowerCase()] ??
-    key.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-  );
+function prettyLabel(t: ActionType, label?: string) {
+  if (t === "phone") return "Direct";
+  if (t === "email") return "Email";
+  if (t === "venmo") return "Venmo";
+  if (t === "cashapp") return "Cash App";
+  if (t === "paypal") return "PayPal";
+  if (t === "instagram") return "Instagram";
+  if (t === "tiktok") return "TikTok";
+  if (t === "youtube") return "YouTube";
+  if (t === "x") return "X";
+  if (t === "website") return "Website";
+  return (label?.trim() || "Link");
 }
 
-function normalizeType(t?: string, label?: string): LinkType {
+function normalizeType(t?: string, label?: string): ActionType {
   const raw = String(t ?? "").toLowerCase().trim();
   const l = String(label ?? "").toLowerCase().trim();
-
   const s = `${raw} ${l}`;
 
-  if (s.includes("venmo")) return "venmo";
-  if (s.includes("cash")) return "cashapp";
-  if (s.includes("paypal")) return "paypal";
+  if (raw === "phone" || s.includes("phone") || s.includes("direct")) return "phone";
+  if (raw === "email" || s.includes("email")) return "email";
 
-  if (s.includes("instagram")) return "instagram";
-  if (s.includes("tiktok")) return "tiktok";
-  if (s.includes("youtube")) return "youtube";
-  if (s === "x" || s.includes("twitter") || s.includes(" x ")) return "x";
-  if (s.includes("website") || s.includes("site") || s.includes("web"))
+  if (raw === "venmo" || s.includes("venmo")) return "venmo";
+  if (raw === "cashapp" || s.includes("cash")) return "cashapp";
+  if (raw === "paypal" || s.includes("paypal")) return "paypal";
+
+  if (raw === "instagram" || s.includes("instagram")) return "instagram";
+  if (raw === "tiktok" || s.includes("tiktok")) return "tiktok";
+  if (raw === "youtube" || s.includes("youtube")) return "youtube";
+  if (raw === "x" || s.includes("twitter") || s.includes(" x ")) return "x";
+  if (raw === "website" || s.includes("website") || s.includes("site") || s.includes("web"))
     return "website";
 
   return "other";
-}
-
-function normalizeLinks(payments: any): {
-  phone: string;
-  email: string;
-  methods: Array<{ type: LinkType; label: string; value: string; url?: string }>;
-  links: Array<{ type: LinkType; label: string; value: string; url?: string }>;
-} {
-  const phone =
-    payments && typeof payments === "object" && typeof payments.phone === "string"
-      ? payments.phone.trim()
-      : "";
-  const email =
-    payments && typeof payments === "object" && typeof payments.email === "string"
-      ? payments.email.trim()
-      : "";
-
-  const out: Array<{ type: LinkType; label: string; value: string; url?: string }> =
-    [];
-
-  if (!payments) {
-    return { phone, email, methods: [], links: [] };
-  }
-
-  // New shape: { phone, email, links: [...] }
-  if (typeof payments === "object" && Array.isArray(payments.links)) {
-    for (const x of payments.links as any[]) {
-      const t = normalizeType(x?.type, x?.label);
-      const label = String(x?.label ?? prettyLabel(String(x?.type ?? "other")));
-      const value = String(x?.value ?? "").trim();
-      const url = x?.url ? String(x.url) : undefined;
-      if (value || url) out.push({ type: t, label, value, url });
-    }
-  } else if (Array.isArray(payments)) {
-    // Array format
-    for (const x of payments as any[]) {
-      const t = normalizeType(x?.type, x?.label);
-      const label = String(x?.label ?? prettyLabel(String(x?.type ?? "other")));
-      const value = String(x?.value ?? "").trim();
-      const url = x?.url ? String(x.url) : undefined;
-      if (value || url) out.push({ type: t, label, value, url });
-    }
-  } else if (typeof payments === "object") {
-    // Legacy object: { venmo, cashapp, paypal, ... }
-    for (const [k, v] of Object.entries(payments)) {
-      if (k === "phone" || k === "email" || k === "links") continue;
-      if (typeof v !== "string") continue;
-      const value = v.trim();
-      if (!value) continue;
-      const t = normalizeType(k, k);
-      out.push({ type: t, label: prettyLabel(k), value });
-    }
-  }
-
-  // Also include top-level venmo/cashapp/paypal even when links[] exists,
-  // because your setup saves both.
-  if (payments && typeof payments === "object") {
-    const v = typeof payments.venmo === "string" ? payments.venmo.trim() : "";
-    const c =
-      typeof payments.cashapp === "string" ? payments.cashapp.trim() : "";
-    const p = typeof payments.paypal === "string" ? payments.paypal.trim() : "";
-    if (v) out.unshift({ type: "venmo", label: "Venmo", value: v });
-    if (c) out.unshift({ type: "cashapp", label: "Cash App", value: c });
-    if (p) out.unshift({ type: "paypal", label: "PayPal", value: p });
-  }
-
-  const methods = out.filter((x) =>
-    x.type === "venmo" || x.type === "cashapp" || x.type === "paypal"
-  );
-
-  const links = out.filter(
-    (x) => !(x.type === "venmo" || x.type === "cashapp" || x.type === "paypal")
-  );
-
-  return { phone, email, methods, links };
 }
 
 function ensureHttp(v: string) {
@@ -173,71 +98,72 @@ function ensureHttp(v: string) {
   return t;
 }
 
-function buildHrefByType(type: LinkType, label: string, value: string, url?: string) {
-  if (url) return { href: url, fallback: undefined as string | undefined };
+function buildHref(type: ActionType, value: string, url?: string): { href: string; fallback?: string } {
+  if (url) return { href: url };
 
   const v = (value ?? "").trim();
-  if (!v) return { href: "", fallback: undefined };
+  if (!v) return { href: "" };
 
-  // If user pasted a real URL, just use it.
-  if (/^https?:\/\//i.test(v)) return { href: v, fallback: undefined };
+  // If user pasted a URL, open it
+  if (/^https?:\/\//i.test(v)) return { href: v };
 
-  // PAYMENTS
+  if (type === "phone") {
+    return { href: `sms:${digitsOnlyPhone(v)}` };
+  }
+
+  if (type === "email") {
+    // we copy emails on tap (UX you already had), but allow mailto if you want later
+    return { href: "" };
+  }
+
   if (type === "venmo") {
     const handle = v.startsWith("@") ? v.slice(1) : v;
     const web = `https://venmo.com/${encodeURIComponent(handle)}`;
-    const deep = `venmo://paycharge?txn=pay&recipients=${encodeURIComponent(
-      handle
-    )}`;
+    const deep = `venmo://paycharge?txn=pay&recipients=${encodeURIComponent(handle)}`;
     return { href: deep, fallback: web };
   }
 
   if (type === "cashapp") {
     const tag = v.startsWith("$") ? v.slice(1) : v;
-    return { href: `https://cash.app/${encodeURIComponent(tag)}`, fallback: undefined };
+    return { href: `https://cash.app/${encodeURIComponent(tag)}` };
   }
 
   if (type === "paypal") {
     const user = v.replace(/^@/, "");
-    if (/paypal\.me\//i.test(user) || /^https?:\/\//i.test(user)) {
-      return { href: user.startsWith("http") ? user : `https://${user}`, fallback: undefined };
+    if (/paypal\.me\//i.test(user) || /^https?:\/\//.test(user)) {
+      return { href: user.startsWith("http") ? user : `https://${user}` };
     }
-    return { href: `https://www.paypal.me/${encodeURIComponent(user)}`, fallback: undefined };
+    return { href: `https://www.paypal.me/${encodeURIComponent(user)}` };
   }
 
-  // SOCIAL / LINKS
   if (type === "instagram") {
     const h = v.replace(/^@/, "");
-    return { href: `https://instagram.com/${encodeURIComponent(h)}`, fallback: undefined };
+    return { href: `https://instagram.com/${encodeURIComponent(h)}` };
   }
 
   if (type === "tiktok") {
     const h = v.replace(/^@/, "");
-    return { href: `https://www.tiktok.com/@${encodeURIComponent(h)}`, fallback: undefined };
+    return { href: `https://www.tiktok.com/@${encodeURIComponent(h)}` };
   }
 
   if (type === "youtube") {
-    // support @handle, channel url, or full url
-    const t = v.trim();
-    if (t.startsWith("@")) {
-      return { href: `https://www.youtube.com/${encodeURIComponent(t)}`, fallback: undefined };
-    }
-    return { href: ensureHttp(t), fallback: undefined };
+    if (v.startsWith("@")) return { href: `https://www.youtube.com/${encodeURIComponent(v)}` };
+    return { href: ensureHttp(v) };
   }
 
   if (type === "x") {
     const h = v.replace(/^@/, "");
-    return { href: `https://x.com/${encodeURIComponent(h)}`, fallback: undefined };
+    return { href: `https://x.com/${encodeURIComponent(h)}` };
   }
 
   if (type === "website") {
-    return { href: ensureHttp(v), fallback: undefined };
+    return { href: ensureHttp(v) };
   }
 
-  // other: open if it looks like a domain; else copy-only fallback
+  // other: open if it looks like a domain; else copy-only
   const maybe = ensureHttp(v);
-  if (maybe.startsWith("http")) return { href: maybe, fallback: undefined };
-  return { href: "", fallback: undefined };
+  if (maybe.startsWith("http")) return { href: maybe };
+  return { href: "" };
 }
 
 async function openWithFallback(href: string, fallback?: string) {
@@ -257,26 +183,15 @@ async function openWithFallback(href: string, fallback?: string) {
   window.location.href = href;
 }
 
-function BrandSvg({
-  path,
-  viewBox = "0 0 24 24",
-}: {
-  path: string;
-  viewBox?: string;
-}) {
+function BrandSvg({ path, viewBox = "0 0 24 24" }: { path: string; viewBox?: string }) {
   return (
-    <svg
-      viewBox={viewBox}
-      className="h-5 w-5"
-      aria-hidden="true"
-      fill="currentColor"
-    >
+    <svg viewBox={viewBox} className="h-5 w-5" aria-hidden="true" fill="currentColor">
       <path d={path} />
     </svg>
   );
 }
 
-function Icon({ type }: { type: LinkType }) {
+function Icon({ type }: { type: ActionType }) {
   if (type === "venmo") return <BrandSvg path={siVenmo.path} />;
   if (type === "cashapp") return <BrandSvg path={siCashapp.path} />;
   if (type === "paypal") return <BrandSvg path={siPaypal.path} />;
@@ -286,6 +201,9 @@ function Icon({ type }: { type: LinkType }) {
   if (type === "youtube") return <BrandSvg path={siYoutube.path} />;
   if (type === "x") return <BrandSvg path={siX.path} />;
   if (type === "website") return <Globe className="h-5 w-5" />;
+
+  if (type === "phone") return <Phone className="h-5 w-5" />;
+  if (type === "email") return <Mail className="h-5 w-5" />;
 
   return null;
 }
@@ -354,6 +272,39 @@ function downloadVCard(filename: string, vcard: string) {
   a.remove();
 
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function normalizeActions(payments: any): ActionItem[] {
+  if (!payments || typeof payments !== "object") return [];
+
+  // Preferred: payments.links is the single ordered list of all actions
+  if (Array.isArray(payments.links)) {
+    return (payments.links as any[])
+      .map((x: any) => ({
+        id: x?.id ? String(x.id) : undefined,
+        type: x?.type ? String(x.type) : undefined,
+        label: x?.label ? String(x.label) : undefined,
+        value: x?.value ? String(x.value) : "",
+        url: x?.url ? String(x.url) : undefined,
+      }))
+      .filter((x: ActionItem) => (String(x.value ?? "").trim() || String(x.url ?? "").trim()));
+  }
+
+  // Fallback legacy shape
+  const out: ActionItem[] = [];
+  if (typeof payments.phone === "string" && payments.phone.trim())
+    out.push({ type: "phone", value: payments.phone.trim() });
+  if (typeof payments.email === "string" && payments.email.trim())
+    out.push({ type: "email", value: payments.email.trim() });
+
+  if (typeof payments.venmo === "string" && payments.venmo.trim())
+    out.push({ type: "venmo", value: payments.venmo.trim() });
+  if (typeof payments.cashapp === "string" && payments.cashapp.trim())
+    out.push({ type: "cashapp", value: payments.cashapp.trim() });
+  if (typeof payments.paypal === "string" && payments.paypal.trim())
+    out.push({ type: "paypal", value: payments.paypal.trim() });
+
+  return out;
 }
 
 export default function CardPage() {
@@ -497,14 +448,26 @@ export default function CardPage() {
     };
   }, [cardId]);
 
-  const normalized = useMemo(() => normalizeLinks(card?.payments), [card?.payments]);
-
-  const phoneValue = normalized.phone;
-  const emailValue = normalized.email;
+  const actions = useMemo(() => normalizeActions(card?.payments), [card?.payments]);
 
   const showPhone = card?.showPhone ?? true;
   const showEmail = card?.showEmail ?? true;
   const showSaveContact = card?.showSaveContact ?? true;
+
+  const phoneValue = useMemo(() => {
+    const p = card?.payments;
+    if (p && typeof p === "object" && typeof p.phone === "string") return p.phone.trim();
+    // also allow ordered link phone item
+    const it = actions.find((a) => normalizeType(a.type, a.label) === "phone");
+    return (it?.value ?? "").trim();
+  }, [card?.payments, actions]);
+
+  const emailValue = useMemo(() => {
+    const p = card?.payments;
+    if (p && typeof p === "object" && typeof p.email === "string") return p.email.trim();
+    const it = actions.find((a) => normalizeType(a.type, a.label) === "email");
+    return (it?.value ?? "").trim();
+  }, [card?.payments, actions]);
 
   const canSaveContact =
     status === "claimed" &&
@@ -617,36 +580,49 @@ export default function CardPage() {
                 </div>
 
                 <div className="mt-10 space-y-4">
-                  {/* PAYMENT METHODS */}
-                  {normalized.methods.length > 0 && (
-                    <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
-                      PAYMENT METHODS
-                    </div>
-                  )}
+                  {actions.map((raw, idx) => {
+                    const type = normalizeType(raw.type, raw.label);
+                    const value = String(raw.value ?? "").trim();
+                    const label = prettyLabel(type, raw.label);
+                    const { href, fallback } = buildHref(type, value, raw.url);
 
-                  {normalized.methods.map((it, idx) => {
-                    const type = it.type;
-                    const { href, fallback } = buildHrefByType(
-                      type,
-                      it.label,
-                      it.value,
-                      it.url
-                    );
-                    const text = it.value || it.url || "";
+                    // Respect privacy toggles
+                    if (type === "phone" && !showPhone) return null;
+                    if (type === "email" && !showEmail) return null;
+
+                    // If there's no usable value/url, don’t render
+                    if (!value && !raw.url) return null;
+
+                    const tapText =
+                      type === "email"
+                        ? "Copy"
+                        : type === "phone"
+                        ? "Message"
+                        : "Open";
 
                     return (
                       <button
-                        key={`method-${type}-${idx}`}
+                        key={`${raw.id ?? `${type}-${idx}`}`}
                         onClick={async () => {
+                          // Email stays copy-on-tap
+                          if (type === "email") {
+                            await copyText(value);
+                            return;
+                          }
+
+                          // Everything else: open if possible; fallback to copy
                           if (href) {
                             await openWithFallback(href, fallback);
                             return;
                           }
-                          if (text) await copyText(text);
+                          if (value) await copyText(value);
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          if (text) copyText(text);
+                          // Long-press always copies something useful
+                          if (type === "email" || type === "phone") copyText(value);
+                          else if (href) copyText(fallback ?? href);
+                          else copyText(value);
                         }}
                         className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
                       >
@@ -659,153 +635,24 @@ export default function CardPage() {
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
                               <Icon type={type} />
                             </div>
-                            <span>{it.label}</span>
+                            <span>{label}</span>
                           </div>
 
-                          <span className="text-white/60 text-sm">
-                            {href ? "Open" : "Copy"}
-                          </span>
+                          <span className="text-white/60 text-sm">{tapText}</span>
                         </div>
 
                         <div className="mt-1 text-left text-sm text-white/55 break-all">
-                          {text}
+                          {type === "phone" || type === "email" ? value : (raw.url ?? value)}
                         </div>
+
+                        {(type === "phone" || type === "email") && (
+                          <div className="mt-1 text-left text-xs text-white/40">
+                            Tap to {type === "phone" ? "message" : "copy"} · Hold to copy
+                          </div>
+                        )}
                       </button>
                     );
                   })}
-
-                  {/* LINKS */}
-                  {normalized.links.length > 0 && (
-                    <div className="pt-2">
-                      <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
-                        LINKS
-                      </div>
-
-                      <div className="space-y-3">
-                        {normalized.links.map((it, idx) => {
-                          const type = it.type;
-                          const label =
-                            type === "other"
-                              ? (it.label?.trim() || "Link")
-                              : prettyLabel(type);
-
-                          const { href } = buildHrefByType(
-                            type,
-                            label,
-                            it.value,
-                            it.url
-                          );
-
-                          const preview = it.value || it.url || "";
-
-                          return (
-                            <button
-                              key={`link-${type}-${idx}`}
-                              onClick={() => {
-                                // Links should OPEN on tap (always).
-                                if (href) openWithFallback(href);
-                                else if (preview) copyText(preview);
-                              }}
-                              onContextMenu={(e) => {
-                                // Optional: long-press copy for convenience
-                                e.preventDefault();
-                                if (href) copyText(href);
-                                else if (preview) copyText(preview);
-                              }}
-                              className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-                            >
-                              <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                                <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
-                              </span>
-
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-                                    <Icon type={type} />
-                                  </div>
-                                  <span>{label}</span>
-                                </div>
-                                <span className="text-white/60 text-sm">
-                                  {href ? "Open" : "Copy"}
-                                </span>
-                              </div>
-
-                              <div className="mt-1 text-left text-sm text-white/55 break-all">
-                                {href || preview}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bottom contact rails */}
-                  {showPhone && !!phoneValue && (
-                    <button
-                      onClick={() =>
-                        openWithFallback(`sms:${digitsOnlyPhone(phoneValue)}`)
-                      }
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        copyText(phoneValue);
-                      }}
-                      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-                    >
-                      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                        <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
-                      </span>
-
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-                            <Phone className="h-5 w-5" />
-                          </div>
-                          <span>Direct</span>
-                        </div>
-                        <span className="text-white/60 text-sm">Message</span>
-                      </div>
-
-                      <div className="mt-1 text-left text-sm text-white/55 break-all">
-                        {phoneValue}
-                      </div>
-                      <div className="mt-1 text-left text-xs text-white/40">
-                        Tap to message · Hold to copy
-                      </div>
-                    </button>
-                  )}
-
-                  {showEmail && !!emailValue && (
-                    <button
-                      onClick={() => copyText(emailValue)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        copyText(emailValue);
-                      }}
-                      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-                    >
-                      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                        <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
-                      </span>
-
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-                            <Mail className="h-5 w-5" />
-                          </div>
-                          <span>Email</span>
-                        </div>
-                        <span className="text-white/60 text-sm">Copy</span>
-                      </div>
-
-                      <div className="mt-1 text-left text-sm text-white/55 break-all">
-                        {emailValue}
-                      </div>
-                      <div className="mt-1 text-left text-xs text-white/40">
-                        Tap to copy · Hold to copy
-                      </div>
-                    </button>
-                  )}
 
                   {/* Viewer-only Save Contact */}
                   {!ownerCheck.isOwner && showSaveContact && (
@@ -841,9 +688,7 @@ export default function CardPage() {
                 </div>
 
                 {!!message && (
-                  <p className="mt-6 text-center text-sm text-white/55">
-                    {message}
-                  </p>
+                  <p className="mt-6 text-center text-sm text-white/55">{message}</p>
                 )}
               </>
             )}
@@ -867,7 +712,6 @@ export default function CardPage() {
         </div>
       </div>
 
-      {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-[#121214]/90 px-4 py-2 text-sm text-white/85 shadow-[0_20px_80px_rgba(0,0,0,0.6)] backdrop-blur">
           {toast}

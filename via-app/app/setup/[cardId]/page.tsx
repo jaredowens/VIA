@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type LinkType =
+type ActionType =
+  | "phone"
+  | "email"
+  | "venmo"
+  | "cashapp"
+  | "paypal"
   | "instagram"
   | "tiktok"
   | "youtube"
@@ -12,11 +17,11 @@ type LinkType =
   | "website"
   | "other";
 
-type LinkItem = {
+type ActionItem = {
   id: string;
-  type: LinkType;
+  type: ActionType;
   label?: string; // only for "other"
-  value: string;  // handle or url
+  value: string;
 };
 
 type CardsRow = {
@@ -52,93 +57,97 @@ function normalizePhone(input: string) {
 function normalizeEmail(input: string) {
   return input.trim();
 }
-
 function normalizeHandle(input: string) {
   return input.trim().replace(/^@/, "");
 }
 
-function coerceToState(p: any): {
-  phone: string;
-  email: string;
-  venmo: string;
-  cashapp: string;
-  paypal: string;
-  links: LinkItem[];
-} {
-  const base = {
-    phone: "",
-    email: "",
-    venmo: "",
-    cashapp: "",
-    paypal: "",
-    links: [] as LinkItem[],
-  };
-
-  if (!p) return base;
-
-  // preferred: object with phone/email + venmo/cashapp/paypal + links[]
-  if (p && typeof p === "object" && !Array.isArray(p)) {
-    const phone = typeof p.phone === "string" ? p.phone : "";
-    const email = typeof p.email === "string" ? p.email : "";
-
-    const venmo = typeof p.venmo === "string" ? p.venmo : "";
-    const cashapp = typeof p.cashapp === "string" ? p.cashapp : "";
-    const paypal = typeof p.paypal === "string" ? p.paypal : "";
-
-  const links: LinkItem[] = Array.isArray(p.links)
-  ? (p.links as any[])
-      .map((x: any): LinkItem => ({
-        id: String(x?.id ?? uid()),
-        type: (String(x?.type ?? "other") as LinkType) || "other",
-        label: x?.label ? String(x.label) : undefined,
-        value: String(x?.value ?? ""), // ✅ always a string
-      }))
-      .filter((x: LinkItem) => x.value.trim().length > 0) // ✅ x is typed
-  : [];
-
-    // If older data shoved payment items into links, ignore those and only keep socials
-    const socialOnly = links.filter(
-      (x) => !["venmo", "cashapp", "paypal"].includes(String(x.type))
-    );
-
-    return {
-      phone,
-      email,
-      venmo,
-      cashapp,
-      paypal,
-      links: socialOnly,
-    };
-  }
-
-  // array format: treat as links only
-  if (Array.isArray(p)) {
-    return {
-      ...base,
-      links: p
-        .map((x: any) => ({
-          id: String(x?.id ?? uid()),
-          type: (String(x?.type ?? "other") as LinkType) || "other",
-          label: x?.label ? String(x.label) : undefined,
-          value: String(x?.value ?? ""),
-        }))
-        .filter((x) => x.value.trim()),
-    };
-  }
-
-  return base;
+function typeLabel(t: ActionType, label?: string) {
+  if (t === "phone") return "Direct Phone";
+  if (t === "email") return "Email";
+  if (t === "venmo") return "Venmo";
+  if (t === "cashapp") return "Cash App";
+  if (t === "paypal") return "PayPal";
+  if (t === "instagram") return "Instagram";
+  if (t === "tiktok") return "TikTok";
+  if (t === "youtube") return "YouTube";
+  if (t === "x") return "X";
+  if (t === "website") return "Website";
+  return label?.trim() || "Other";
 }
 
-function linkTypeLabel(t: LinkType) {
-  const map: Record<LinkType, string> = {
-    instagram: "Instagram",
-    tiktok: "TikTok",
-    youtube: "YouTube",
-    x: "X",
-    website: "Website",
-    other: "Other",
+function coerceToActions(p: any): {
+  actions: ActionItem[];
+} {
+  // Default order if nothing exists yet
+  const base: ActionItem[] = [
+    { id: uid(), type: "venmo", value: "" },
+    { id: uid(), type: "cashapp", value: "" },
+    { id: uid(), type: "paypal", value: "" },
+    { id: uid(), type: "phone", value: "" },
+    { id: uid(), type: "email", value: "" },
+  ];
+
+  if (!p || typeof p !== "object") return { actions: base };
+
+  // Preferred: payments_json.links stores ordered action list
+  if (Array.isArray(p.links)) {
+    const actions = (p.links as any[]).map((x: any): ActionItem => ({
+      id: String(x?.id ?? uid()),
+      type: (String(x?.type ?? "other") as ActionType) || "other",
+      label: x?.label ? String(x.label) : undefined,
+      value: String(x?.value ?? ""),
+    }));
+
+    // Ensure core items exist (in case older records missing them)
+    const ensure = (t: ActionType) => {
+      if (!actions.some((a) => a.type === t)) actions.push({ id: uid(), type: t, value: "" });
+    };
+    ensure("venmo");
+    ensure("cashapp");
+    ensure("paypal");
+    ensure("phone");
+    ensure("email");
+
+    // Pull top-level values into the matching core items if present
+    if (typeof p.venmo === "string") {
+      const a = actions.find((x) => x.type === "venmo");
+      if (a && !a.value.trim()) a.value = p.venmo;
+    }
+    if (typeof p.cashapp === "string") {
+      const a = actions.find((x) => x.type === "cashapp");
+      if (a && !a.value.trim()) a.value = p.cashapp;
+    }
+    if (typeof p.paypal === "string") {
+      const a = actions.find((x) => x.type === "paypal");
+      if (a && !a.value.trim()) a.value = p.paypal;
+    }
+    if (typeof p.phone === "string") {
+      const a = actions.find((x) => x.type === "phone");
+      if (a && !a.value.trim()) a.value = p.phone;
+    }
+    if (typeof p.email === "string") {
+      const a = actions.find((x) => x.type === "email");
+      if (a && !a.value.trim()) a.value = p.email;
+    }
+
+    return { actions };
+  }
+
+  // Legacy object: build actions from known keys
+  const actions = [...base];
+
+  const setCore = (t: ActionType, v: string) => {
+    const a = actions.find((x) => x.type === t);
+    if (a) a.value = v;
   };
-  return map[t];
+
+  if (typeof p.venmo === "string") setCore("venmo", p.venmo);
+  if (typeof p.cashapp === "string") setCore("cashapp", p.cashapp);
+  if (typeof p.paypal === "string") setCore("paypal", p.paypal);
+  if (typeof p.phone === "string") setCore("phone", p.phone);
+  if (typeof p.email === "string") setCore("email", p.email);
+
+  return { actions };
 }
 
 export default function SetupPage() {
@@ -156,25 +165,16 @@ export default function SetupPage() {
   const [photoUrl, setPhotoUrl] = useState("");
   const [payLabel, setPayLabel] = useState("");
 
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-
-  // core payment methods
-  const [venmo, setVenmo] = useState("");
-  const [cashapp, setCashapp] = useState("");
-  const [paypal, setPaypal] = useState("");
-
-  // social/personal links (ordered)
-  const [links, setLinks] = useState<LinkItem[]>([]);
+  const [actions, setActions] = useState<ActionItem[]>([]);
 
   const [showPhone, setShowPhone] = useState(true);
   const [showEmail, setShowEmail] = useState(true);
   const [showSaveContact, setShowSaveContact] = useState(true);
 
-  // add-link controls
-  const [newLinkType, setNewLinkType] = useState<LinkType>("instagram");
-  const [newLinkLabel, setNewLinkLabel] = useState("");
-  const [newLinkValue, setNewLinkValue] = useState("");
+  const [showAddLink, setShowAddLink] = useState(false);
+  const [newType, setNewType] = useState<ActionType>("instagram");
+  const [newLabel, setNewLabel] = useState("");
+  const [newValue, setNewValue] = useState("");
 
   const returnToCard = useMemo(() => `/c/${cardId}`, [cardId]);
 
@@ -244,13 +244,8 @@ export default function SetupPage() {
       setPhotoUrl(row.photo_url ?? "");
       setPayLabel(row.pay_label ?? "");
 
-      const parsed = coerceToState(row.payments_json);
-      setPhone(parsed.phone ?? "");
-      setEmail(parsed.email ?? "");
-      setVenmo(parsed.venmo ?? "");
-      setCashapp(parsed.cashapp ?? "");
-      setPaypal(parsed.paypal ?? "");
-      setLinks(parsed.links ?? []);
+      const parsed = coerceToActions(row.payments_json);
+      setActions(parsed.actions);
 
       setShowPhone(row.show_phone ?? true);
       setShowEmail(row.show_email ?? true);
@@ -265,8 +260,8 @@ export default function SetupPage() {
     };
   }, [cardId, returnToCard]);
 
-  function moveLink(id: string, dir: -1 | 1) {
-    setLinks((prev) => {
+  function moveAction(id: string, dir: -1 | 1) {
+    setActions((prev) => {
       const i = prev.findIndex((p) => p.id === id);
       if (i < 0) return prev;
       const j = i + dir;
@@ -279,38 +274,33 @@ export default function SetupPage() {
     });
   }
 
-  function updateLink(id: string, patch: Partial<LinkItem>) {
-    setLinks((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  function updateAction(id: string, patch: Partial<ActionItem>) {
+    setActions((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
 
-  function removeLink(id: string) {
-    setLinks((prev) => prev.filter((p) => p.id !== id));
+  function removeAction(id: string) {
+    setActions((prev) => prev.filter((p) => p.id !== id));
   }
 
   function addLink() {
-    const v = newLinkValue.trim();
+    const v = newValue.trim();
     if (!v) return;
 
-    if (newLinkType === "other") {
-      const l = newLinkLabel.trim();
+    if (newType === "other") {
+      const l = newLabel.trim();
       if (!l) return;
-      setLinks((prev) => [
-        ...prev,
-        { id: uid(), type: "other", label: l, value: v },
-      ]);
-      setNewLinkLabel("");
-      setNewLinkValue("");
-      setNewLinkType("instagram");
+      setActions((prev) => [...prev, { id: uid(), type: "other", label: l, value: v }]);
+      setNewLabel("");
+      setNewValue("");
+      setNewType("instagram");
+      setShowAddLink(false);
       return;
     }
 
-    setLinks((prev) => [
-      ...prev,
-      { id: uid(), type: newLinkType, value: v },
-    ]);
-
-    setNewLinkValue("");
-    setNewLinkType("instagram");
+    setActions((prev) => [...prev, { id: uid(), type: newType, value: v }]);
+    setNewValue("");
+    setNewType("instagram");
+    setShowAddLink(false);
   }
 
   async function save() {
@@ -323,7 +313,9 @@ export default function SetupPage() {
       return;
     }
 
-    const phoneNorm = normalizePhone(phone);
+    // phone required (pull from action list)
+    const phoneItem = actions.find((a) => a.type === "phone");
+    const phoneNorm = normalizePhone(phoneItem?.value ?? "");
     if (!phoneNorm) {
       setMsg("Direct phone number is required.");
       return;
@@ -333,37 +325,42 @@ export default function SetupPage() {
     setMsg("");
 
     try {
-      const venmoClean = normalizeVenmoHandle(venmo || "");
-      const cashappClean = normalizeCashAppTag(cashapp || "");
-      const paypalClean = normalizePaypal(paypal || "");
+      const cleaned = actions.map((a) => {
+        let v = (a.value ?? "").trim();
 
-      const cleanedLinks = links
-        .map((l) => {
-          const value = l.value.trim();
-          const type = l.type;
+        if (a.type === "venmo") v = normalizeVenmoHandle(v);
+        if (a.type === "cashapp") v = normalizeCashAppTag(v);
+        if (a.type === "paypal") v = normalizePaypal(v);
 
-          // normalize handles for socials
-          const normalizedValue =
-            type === "instagram" || type === "tiktok" || type === "x"
-              ? normalizeHandle(value)
-              : value;
+        if (a.type === "instagram" || a.type === "tiktok" || a.type === "x") {
+          v = normalizeHandle(v);
+        }
 
-          return {
-            id: l.id,
-            type: l.type,
-            label: l.type === "other" ? (l.label?.trim() || "Link") : undefined,
-            value: normalizedValue,
-          };
-        })
-        .filter((l) => l.value);
+        if (a.type === "email") v = normalizeEmail(v);
+        if (a.type === "phone") v = normalizePhone(v);
+
+        return {
+          id: a.id,
+          type: a.type,
+          label: a.type === "other" ? (a.label?.trim() || "Link") : undefined,
+          value: v,
+        };
+      });
+
+      // Legacy keys still present for compatibility
+      const venmo = cleaned.find((x) => x.type === "venmo")?.value ?? "";
+      const cashapp = cleaned.find((x) => x.type === "cashapp")?.value ?? "";
+      const paypal = cleaned.find((x) => x.type === "paypal")?.value ?? "";
+      const email = cleaned.find((x) => x.type === "email")?.value ?? "";
 
       const payments_json: any = {
-        venmo: venmoClean,
-        cashapp: cashappClean,
-        paypal: paypalClean,
+        venmo,
+        cashapp,
+        paypal,
         phone: phoneNorm,
-        email: normalizeEmail(email) || "",
-        links: cleanedLinks,
+        email,
+        // SINGLE SOURCE OF TRUTH for ordering:
+        links: cleaned,
       };
 
       const { error } = await supabase
@@ -429,9 +426,7 @@ export default function SetupPage() {
 
               {/* BASICS */}
               <div className="space-y-4">
-                <div className="text-xs tracking-[0.35em] text-white/45">
-                  BASICS
-                </div>
+                <div className="text-xs tracking-[0.35em] text-white/45">BASICS</div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -441,7 +436,7 @@ export default function SetupPage() {
                     <input
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none focus:border-white/20"
                     />
                   </div>
 
@@ -452,7 +447,7 @@ export default function SetupPage() {
                     <input
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none focus:border-white/20"
                     />
                   </div>
                 </div>
@@ -464,7 +459,7 @@ export default function SetupPage() {
                   <textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    className="w-full resize-none rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                    className="w-full resize-none rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none focus:border-white/20"
                   />
                 </div>
 
@@ -475,254 +470,206 @@ export default function SetupPage() {
                   <input
                     value={payLabel}
                     onChange={(e) => setPayLabel(e.target.value)}
-                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
+                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none focus:border-white/20"
                   />
                 </div>
               </div>
 
-              {/* PAYMENTS */}
+              {/* ACTIONS */}
               <div className="space-y-4">
                 <div className="text-xs tracking-[0.35em] text-white/45">
-                  PAYMENTS
+                  ACTIONS (ORDERED)
                 </div>
 
-                <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    DIRECT PHONE (REQUIRED)
-                  </label>
-                  <p className="mb-2 text-xs text-white/40 tracking-wide">
-                    Used for direct transfers. On your card: tap to message, hold
-                    to copy.
-                  </p>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                  />
-                </div>
+                <div className="space-y-3">
+                  {actions.map((a, idx) => (
+                    <div
+                      key={a.id}
+                      className="rounded-2xl border border-white/12 bg-white/5 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-white/90">
+                          {typeLabel(a.type, a.label)}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => moveAction(a.id, -1)}
+                            disabled={idx === 0}
+                            className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
+                          >
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveAction(a.id, 1)}
+                            disabled={idx === actions.length - 1}
+                            className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
+                          >
+                            Down
+                          </button>
 
-                <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    EMAIL (OPTIONAL)
-                  </label>
-                  <p className="mb-2 text-xs text-white/40 tracking-wide">
-                    On your card: tap/hold copies it.
-                  </p>
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    type="email"
-                    className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                  />
-                </div>
-
-                {/* Core payment methods (fixed fields) */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
-                  <div>
-                    <label className="block text-xs tracking-wider text-white/60 mb-2">
-                      VENMO (OPTIONAL)
-                    </label>
-                    <input
-                      value={venmo}
-                      onChange={(e) => setVenmo(e.target.value)}
-                      placeholder="@username"
-                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs tracking-wider text-white/60 mb-2">
-                      CASH APP (OPTIONAL)
-                    </label>
-                    <input
-                      value={cashapp}
-                      onChange={(e) => setCashapp(e.target.value)}
-                      placeholder="$cashtag"
-                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs tracking-wider text-white/60 mb-2">
-                      PAYPAL (OPTIONAL)
-                    </label>
-                    <input
-                      value={paypal}
-                      onChange={(e) => setPaypal(e.target.value)}
-                      placeholder="paypal.me/..."
-                      className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* LINKS */}
-              <div className="space-y-4">
-                <div className="text-xs tracking-[0.35em] text-white/45">
-                  LINKS (SOCIAL / PERSONAL)
-                </div>
-
-                <div className="rounded-2xl border border-white/12 bg-white/5 p-4">
-                  <div className="text-sm font-medium text-white/90">
-                    Add Link
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div>
-                      <label className="block text-xs tracking-wider text-white/55 mb-2">
-                        TYPE
-                      </label>
-                      <select
-                        value={newLinkType}
-                        onChange={(e) => setNewLinkType(e.target.value as LinkType)}
-                        className="w-full rounded-2xl border border-white/12 bg-[#121214] px-4 py-3 text-white/90 outline-none focus:border-white/20"
-                      >
-                        <option value="instagram">Instagram</option>
-                        <option value="tiktok">TikTok</option>
-                        <option value="youtube">YouTube</option>
-                        <option value="x">X</option>
-                        <option value="website">Website</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-
-                    {newLinkType === "other" ? (
-                      <div>
-                        <label className="block text-xs tracking-wider text-white/55 mb-2">
-                          LABEL
-                        </label>
-                        <input
-                          value={newLinkLabel}
-                          onChange={(e) => setNewLinkLabel(e.target.value)}
-                          placeholder="e.g., Portfolio"
-                          className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                        />
-                      </div>
-                    ) : (
-                      <div className="hidden sm:block" />
-                    )}
-
-                    <div className={newLinkType === "other" ? "" : "sm:col-span-2"}>
-                      <label className="block text-xs tracking-wider text-white/55 mb-2">
-                        HANDLE OR URL
-                      </label>
-                      <input
-                        value={newLinkValue}
-                        onChange={(e) => setNewLinkValue(e.target.value)}
-                        placeholder={
-                          newLinkType === "website"
-                            ? "example.com"
-                            : newLinkType === "youtube"
-                            ? "@channel or URL"
-                            : "@handle"
-                        }
-                        className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={addLink}
-                    className="mt-3 w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"
-                  >
-                    Add
-                  </button>
-                </div>
-
-                {links.length > 0 && (
-                  <div className="space-y-3">
-                    {links.map((l, idx) => (
-                      <div
-                        key={l.id}
-                        className="rounded-2xl border border-white/12 bg-white/5 p-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium text-white/90">
-                            {l.type === "other"
-                              ? (l.label?.trim() || "Other")
-                              : linkTypeLabel(l.type)}
-                          </div>
-                          <div className="flex items-center gap-2">
+                          {/* allow removing only non-core */}
+                          {!["venmo", "cashapp", "paypal", "phone", "email"].includes(a.type) && (
                             <button
                               type="button"
-                              onClick={() => moveLink(l.id, -1)}
-                              disabled={idx === 0}
-                              className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
-                            >
-                              Up
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveLink(l.id, 1)}
-                              disabled={idx === links.length - 1}
-                              className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
-                            >
-                              Down
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeLink(l.id)}
+                              onClick={() => removeAction(a.id)}
                               className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-red-300 hover:bg-white/10"
                             >
                               Remove
                             </button>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          {l.type === "other" ? (
-                            <div>
-                              <label className="block text-xs tracking-wider text-white/55 mb-2">
-                                LABEL
-                              </label>
-                              <input
-                                value={l.label ?? ""}
-                                onChange={(e) =>
-                                  updateLink(l.id, { label: e.target.value })
-                                }
-                                className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                              />
-                            </div>
-                          ) : (
-                            <div>
-                              <label className="block text-xs tracking-wider text-white/55 mb-2">
-                                TYPE
-                              </label>
-                              <div className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/70">
-                                {linkTypeLabel(l.type)}
-                              </div>
-                            </div>
                           )}
-
-                          <div>
-                            <label className="block text-xs tracking-wider text-white/55 mb-2">
-                              HANDLE OR URL
-                            </label>
-                            <input
-                              value={l.value}
-                              onChange={(e) =>
-                                updateLink(l.id, { value: e.target.value })
-                              }
-                              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none placeholder:text-white/35 focus:border-white/20"
-                            />
-                          </div>
                         </div>
                       </div>
-                    ))}
+
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {a.type === "other" ? (
+                          <div>
+                            <label className="block text-xs tracking-wider text-white/55 mb-2">
+                              LABEL
+                            </label>
+                            <input
+                              value={a.label ?? ""}
+                              onChange={(e) => updateAction(a.id, { label: e.target.value })}
+                              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                            />
+                          </div>
+                        ) : (
+                          <div className="hidden sm:block" />
+                        )}
+
+                        <div className={a.type === "other" ? "" : "sm:col-span-2"}>
+                          <label className="block text-xs tracking-wider text-white/55 mb-2">
+                            VALUE
+                          </label>
+                          <input
+                            value={a.value}
+                            onChange={(e) => updateAction(a.id, { value: e.target.value })}
+                            placeholder={
+                              a.type === "venmo"
+                                ? "@username"
+                                : a.type === "cashapp"
+                                ? "$cashtag"
+                                : a.type === "paypal"
+                                ? "paypal.me/..."
+                                : a.type === "phone"
+                                ? "Phone number"
+                                : a.type === "email"
+                                ? "Email"
+                                : a.type === "website"
+                                ? "example.com"
+                                : "@handle or URL"
+                            }
+                            className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                          />
+                        </div>
+                      </div>
+
+                      {(a.type === "phone" || a.type === "email") && (
+                        <p className="mt-2 text-xs text-white/40 tracking-wide">
+                          {a.type === "phone"
+                            ? "Required. Used for messaging + direct transfer."
+                            : "Optional. Tap copies on your public card."}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Small Add Link button -> expands */}
+                {!showAddLink ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddLink(true)}
+                    className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
+                  >
+                    + Add Link
+                  </button>
+                ) : (
+                  <div className="rounded-2xl border border-white/12 bg-white/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-white/90">Add Link</div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddLink(false)}
+                        className="text-xs text-white/60 hover:text-white/80"
+                      >
+                        Close
+                      </button>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="block text-xs tracking-wider text-white/55 mb-2">
+                          TYPE
+                        </label>
+                        <select
+                          value={newType}
+                          onChange={(e) => setNewType(e.target.value as ActionType)}
+                          className="w-full rounded-2xl border border-white/12 bg-[#121214] px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                        >
+                          <option value="instagram">Instagram</option>
+                          <option value="tiktok">TikTok</option>
+                          <option value="youtube">YouTube</option>
+                          <option value="x">X</option>
+                          <option value="website">Website</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
+                      {newType === "other" ? (
+                        <div>
+                          <label className="block text-xs tracking-wider text-white/55 mb-2">
+                            LABEL
+                          </label>
+                          <input
+                            value={newLabel}
+                            onChange={(e) => setNewLabel(e.target.value)}
+                            placeholder="e.g., Portfolio"
+                            className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                          />
+                        </div>
+                      ) : (
+                        <div className="hidden sm:block" />
+                      )}
+
+                      <div className={newType === "other" ? "" : "sm:col-span-2"}>
+                        <label className="block text-xs tracking-wider text-white/55 mb-2">
+                          HANDLE OR URL
+                        </label>
+                        <input
+                          value={newValue}
+                          onChange={(e) => setNewValue(e.target.value)}
+                          placeholder={
+                            newType === "website"
+                              ? "example.com"
+                              : newType === "youtube"
+                              ? "@channel or URL"
+                              : "@handle"
+                          }
+                          className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={addLink}
+                      className="mt-3 w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"
+                    >
+                      Add
+                    </button>
                   </div>
                 )}
 
                 <p className="text-xs text-white/40 tracking-wide">
-                  Tip: reorder with Up/Down. The top link shows first on your card.
+                  Tip: reorder with Up/Down — this is the exact order your card shows.
                 </p>
               </div>
 
               {/* PRIVACY */}
               <div className="space-y-4">
-                <div className="text-xs tracking-[0.35em] text-white/45">
-                  PRIVACY
-                </div>
+                <div className="text-xs tracking-[0.35em] text-white/45">PRIVACY</div>
 
                 <label className="flex items-center gap-3 text-sm text-white/80">
                   <input
