@@ -22,79 +22,62 @@ type PublicCardPayload = {
   bio: string | null;
   photoUrl: string | null;
   payLabel: string | null;
-  payments: any;
 
-  // may arrive as camelCase OR snake_case depending on /api/card-public
-  showPhone?: boolean;
-  showEmail?: boolean;
-  showSaveContact?: boolean;
-  show_phone?: boolean;
-  show_email?: boolean;
-  show_save_contact?: boolean;
+  showPhone: boolean;
+  showEmail: boolean;
+  showSaveContact: boolean;
+
+  payments: {
+    phone: string | null;
+    email: string | null;
+    links: Array<{
+      id: string;
+      type: string;
+      label?: string | null;
+      value: string;
+    }>;
+  };
 };
 
-type ActionType =
-  | "phone"
-  | "email"
-  | "venmo"
-  | "cashapp"
-  | "paypal"
-  | "instagram"
-  | "tiktok"
-  | "youtube"
-  | "x"
-  | "website"
-  | "other";
-
-type ActionItem = {
-  id?: string;
-  type?: string;
-  label?: string;
-  value?: string;
-  url?: string;
-};
+type LinkItem = PublicCardPayload["payments"]["links"][number];
 
 function digitsOnlyPhone(value: string) {
   return value.replace(/[^\d+]/g, "");
 }
 
-function normalizeType(t?: string, label?: string, value?: string): ActionType {
+function normalizeType(t?: string, label?: string, value?: string) {
   const raw = String(t ?? "").toLowerCase().trim();
   const l = String(label ?? "").toLowerCase().trim();
   const v = String(value ?? "").toLowerCase().trim();
   const s = `${raw} ${l} ${v}`;
 
-  if (raw === "phone" || s.includes("phone") || s.includes("direct")) return "phone";
-  if (raw === "email" || s.includes("email")) return "email";
-
   if (raw === "venmo" || s.includes("venmo")) return "venmo";
-  if (raw === "cashapp" || s.includes("cash")) return "cashapp";
+  if (raw === "cashapp" || raw === "cash" || s.includes("cashapp") || s.includes("cash app"))
+    return "cashapp";
   if (raw === "paypal" || s.includes("paypal")) return "paypal";
 
-  if (raw === "instagram" || s.includes("instagram.com") || s.includes("instagram"))
-    return "instagram";
-  if (raw === "tiktok" || s.includes("tiktok.com") || s.includes("tiktok")) return "tiktok";
-  if (raw === "youtube" || s.includes("youtube.com") || s.includes("youtu.be") || s.includes("youtube"))
-    return "youtube";
-  if (raw === "x" || raw === "twitter" || s.includes("x.com") || s.includes("twitter.com"))
+  if (raw === "instagram" || s.includes("instagram")) return "instagram";
+  if (raw === "tiktok" || s.includes("tiktok")) return "tiktok";
+  if (raw === "youtube" || s.includes("youtube") || s.includes("youtu.be")) return "youtube";
+  if (raw === "x" || raw === "twitter" || s.includes("x.com") || s.includes("twitter"))
     return "x";
-  if (raw === "website" || s.includes("website") || s.includes("http") || (v.includes(".") && !v.includes(" ")))
+
+  if (raw === "website" || s.includes("http") || (v.includes(".") && !v.includes(" ")))
     return "website";
 
-  return "other";
+  if (raw === "other") return "other";
+  return raw || "other";
 }
 
-function prettyLabel(t: ActionType, fallback?: string) {
-  if (t === "phone") return "Phone";
-  if (t === "email") return "Email";
-  if (t === "venmo") return "Venmo";
-  if (t === "cashapp") return "Cash App";
-  if (t === "paypal") return "PayPal";
-  if (t === "instagram") return "Instagram";
-  if (t === "tiktok") return "TikTok";
-  if (t === "youtube") return "YouTube";
-  if (t === "x") return "X";
-  if (t === "website") return "Website";
+function prettyLabel(type: string, fallback?: string | null) {
+  if (type === "venmo") return "Venmo";
+  if (type === "cashapp") return "Cash App";
+  if (type === "paypal") return "PayPal";
+  if (type === "instagram") return "Instagram";
+  if (type === "tiktok") return "TikTok";
+  if (type === "youtube") return "YouTube";
+  if (type === "x") return "X";
+  if (type === "website") return "Website";
   return (fallback?.trim() || "Link");
 }
 
@@ -106,77 +89,51 @@ function ensureHttp(v: string) {
   return "";
 }
 
-function buildHref(type: ActionType, value: string, url?: string): { href: string; fallback?: string } {
-  if (url) return { href: url };
-
+function buildHref(type: string, value: string) {
   const v = (value ?? "").trim();
-  if (!v) return { href: "" };
+  if (!v) return "";
 
-  // pasted url => open
-  if (/^https?:\/\//i.test(v)) return { href: v };
-
-  if (type === "phone") return { href: `sms:${digitsOnlyPhone(v)}` };
-
-  // email stays copy-only by design
-  if (type === "email") return { href: "" };
+  if (/^https?:\/\//i.test(v)) return v;
 
   if (type === "venmo") {
     const handle = v.startsWith("@") ? v.slice(1) : v;
-    const web = `https://venmo.com/${encodeURIComponent(handle)}`;
-    const deep = `venmo://paycharge?txn=pay&recipients=${encodeURIComponent(handle)}`;
-    return { href: deep, fallback: web };
+    return `https://venmo.com/${encodeURIComponent(handle)}`;
   }
-
   if (type === "cashapp") {
     const tag = v.startsWith("$") ? v.slice(1) : v;
-    return { href: `https://cash.app/${encodeURIComponent(tag)}` };
+    return `https://cash.app/${encodeURIComponent(tag)}`;
   }
-
   if (type === "paypal") {
+    if (/paypal\.me\//i.test(v)) return v.startsWith("http") ? v : `https://${v}`;
     const user = v.replace(/^@/, "");
-    if (/paypal\.me\//i.test(user) || /^https?:\/\//.test(user)) {
-      return { href: user.startsWith("http") ? user : `https://${user}` };
-    }
-    return { href: `https://www.paypal.me/${encodeURIComponent(user)}` };
+    return `https://www.paypal.me/${encodeURIComponent(user)}`;
   }
 
   if (type === "instagram") {
     const h = v.replace(/^@/, "");
-    return { href: `https://instagram.com/${encodeURIComponent(h)}` };
+    return `https://instagram.com/${encodeURIComponent(h)}`;
   }
   if (type === "tiktok") {
     const h = v.replace(/^@/, "");
-    return { href: `https://www.tiktok.com/@${encodeURIComponent(h)}` };
+    return `https://www.tiktok.com/@${encodeURIComponent(h)}`;
   }
   if (type === "youtube") {
-    if (v.startsWith("@")) return { href: `https://www.youtube.com/${encodeURIComponent(v)}` };
+    // allow full url or channel handle
+    if (v.startsWith("@")) return `https://www.youtube.com/${encodeURIComponent(v)}`;
     const maybe = ensureHttp(v);
-    return { href: maybe || "" };
+    return maybe || "";
   }
   if (type === "x") {
     const h = v.replace(/^@/, "");
-    return { href: `https://x.com/${encodeURIComponent(h)}` };
+    return `https://x.com/${encodeURIComponent(h)}`;
   }
 
-  // website/other: open if it looks like a domain
-  const maybe = ensureHttp(v);
-  if (maybe) return { href: maybe };
-  return { href: "" };
-}
-
-async function openWithFallback(href: string, fallback?: string) {
-  if (!href) return;
-
-  const isAppScheme =
-    /^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(href) && !href.startsWith("http");
-
-  if (fallback && isAppScheme) {
-    window.location.assign(href);
-    setTimeout(() => window.location.assign(fallback), 700);
-    return;
+  if (type === "website" || type === "other") {
+    const maybe = ensureHttp(v);
+    return maybe || "";
   }
 
-  window.location.assign(href);
+  return "";
 }
 
 function BrandSvg({ path, viewBox = "0 0 24 24" }: { path: string; viewBox?: string }) {
@@ -187,7 +144,7 @@ function BrandSvg({ path, viewBox = "0 0 24 24" }: { path: string; viewBox?: str
   );
 }
 
-function Icon({ type }: { type: ActionType }) {
+function Icon({ type }: { type: string }) {
   if (type === "venmo") return <BrandSvg path={siVenmo.path} />;
   if (type === "cashapp") return <BrandSvg path={siCashapp.path} />;
   if (type === "paypal") return <BrandSvg path={siPaypal.path} />;
@@ -198,15 +155,10 @@ function Icon({ type }: { type: ActionType }) {
   if (type === "x") return <BrandSvg path={siX.path} />;
   if (type === "website") return <Globe className="h-5 w-5" />;
 
-  if (type === "phone") return <Phone className="h-5 w-5" />;
-  if (type === "email") return <Mail className="h-5 w-5" />;
-
   return null;
 }
 
-// ------------------------
-// Save Contact helpers
-// ------------------------
+// vCard helpers unchanged from your file
 function vEscape(v: string) {
   return (v ?? "")
     .replace(/\r\n/g, "\n")
@@ -215,7 +167,6 @@ function vEscape(v: string) {
     .replace(/,/g, "\\,")
     .replace(/;/g, "\\;");
 }
-
 function splitName(full: string) {
   const t = (full ?? "").trim();
   if (!t) return { first: "", last: "" };
@@ -224,7 +175,6 @@ function splitName(full: string) {
   const last = parts.slice(1).join(" ");
   return { first, last };
 }
-
 function buildVCard(opts: {
   fullName: string;
   phone?: string;
@@ -233,87 +183,51 @@ function buildVCard(opts: {
   url?: string;
 }) {
   const { first, last } = splitName(opts.fullName);
-
   const lines: string[] = [];
   lines.push("BEGIN:VCARD");
   lines.push("VERSION:3.0");
   lines.push(`N:${vEscape(last)};${vEscape(first)};;;`);
   lines.push(`FN:${vEscape(opts.fullName)}`);
-
   const phone = (opts.phone ?? "").trim();
   if (phone) lines.push(`TEL;TYPE=CELL:${vEscape(phone)}`);
-
   const email = (opts.email ?? "").trim();
   if (email) lines.push(`EMAIL;TYPE=INTERNET:${vEscape(email)}`);
-
   const url = (opts.url ?? "").trim();
   if (url) lines.push(`URL:${vEscape(url)}`);
-
   const note = (opts.note ?? "").trim();
   if (note) lines.push(`NOTE:${vEscape(note)}`);
-
   lines.push("END:VCARD");
   return lines.join("\r\n");
 }
-
 function downloadVCard(filename: string, vcard: string) {
   const blob = new Blob([vcard], { type: "text/vcard;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
-
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function normalizeActions(payments: any): ActionItem[] {
-  if (!payments || typeof payments !== "object") return [];
-
-  if (Array.isArray(payments.links)) {
-    return (payments.links as any[])
-      .map((x: any) => ({
-        id: x?.id ? String(x.id) : undefined,
-        type: x?.type ? String(x.type) : undefined,
-        label: x?.label ? String(x.label) : undefined,
-        value: x?.value ? String(x.value) : "",
-        url: x?.url ? String(x.url) : undefined,
-      }))
-      .filter((x: ActionItem) => String(x.value ?? "").trim() || String(x.url ?? "").trim());
-  }
-
-  // fallback legacy keys
-  const out: ActionItem[] = [];
-  if (typeof payments.venmo === "string" && payments.venmo.trim()) out.push({ type: "venmo", value: payments.venmo.trim() });
-  if (typeof payments.cashapp === "string" && payments.cashapp.trim()) out.push({ type: "cashapp", value: payments.cashapp.trim() });
-  if (typeof payments.paypal === "string" && payments.paypal.trim()) out.push({ type: "paypal", value: payments.paypal.trim() });
-  if (typeof payments.phone === "string" && payments.phone.trim()) out.push({ type: "phone", value: payments.phone.trim() });
-  if (typeof payments.email === "string" && payments.email.trim()) out.push({ type: "email", value: payments.email.trim() });
-  return out;
 }
 
 export default function CardPage() {
   const router = useRouter();
   const { cardId } = useParams<{ cardId: string }>();
-
   if (!cardId) return null;
 
   const [status, setStatus] = useState<ViewStatus>("checking");
   const [message, setMessage] = useState("");
   const [card, setCard] = useState<PublicCardPayload | null>(null);
 
-  const [ownerCheck, setOwnerCheck] = useState<{
-    loading: boolean;
-    signedIn: boolean;
-    isOwner: boolean;
-  }>({ loading: true, signedIn: false, isOwner: false });
+  const [ownerCheck, setOwnerCheck] = useState({
+    loading: true,
+    signedIn: false,
+    isOwner: false,
+  });
 
   const [savingContact, setSavingContact] = useState(false);
 
-  // Toast
   const [toast, setToast] = useState("");
   function showToast(t: string) {
     setToast(t);
@@ -343,11 +257,7 @@ export default function CardPage() {
         return;
       }
       const j = await res.json();
-      setOwnerCheck({
-        loading: false,
-        signedIn: !!j.signedIn,
-        isOwner: !!j.isOwner,
-      });
+      setOwnerCheck({ loading: false, signedIn: !!j.signedIn, isOwner: !!j.isOwner });
     } catch {
       setOwnerCheck({ loading: false, signedIn: false, isOwner: false });
     }
@@ -355,10 +265,7 @@ export default function CardPage() {
 
   useEffect(() => {
     refreshOwner();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => refreshOwner());
-
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => refreshOwner());
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId]);
@@ -373,17 +280,14 @@ export default function CardPage() {
 
     async function check() {
       try {
-        const res = await fetch(
-          `/api/card-status?cardId=${encodeURIComponent(cardId)}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/card-status?cardId=${encodeURIComponent(cardId)}`, {
+          cache: "no-store",
+        });
 
         if (!res.ok) {
           if (!cancelled) {
             setStatus(res.status === 404 ? "notfound" : "error");
-            setMessage(
-              res.status === 404 ? "Card not found." : "Something went wrong."
-            );
+            setMessage(res.status === 404 ? "Card not found." : "Something went wrong.");
           }
           return;
         }
@@ -399,10 +303,9 @@ export default function CardPage() {
 
         setStatus("claimed");
 
-        const res2 = await fetch(
-          `/api/card-public?cardId=${encodeURIComponent(cardId)}`,
-          { cache: "no-store" }
-        );
+        const res2 = await fetch(`/api/card-public?cardId=${encodeURIComponent(cardId)}`, {
+          cache: "no-store",
+        });
 
         if (!res2.ok) {
           let details = "";
@@ -410,13 +313,7 @@ export default function CardPage() {
             const j = await res2.json();
             details = j?.details || j?.error || "";
           } catch {}
-          if (!cancelled) {
-            setMessage(
-              details
-                ? `Could not load card details: ${details}`
-                : "Could not load card details."
-            );
-          }
+          if (!cancelled) setMessage(details ? `Could not load card: ${details}` : "Could not load card.");
           return;
         }
 
@@ -436,22 +333,25 @@ export default function CardPage() {
     };
   }, [cardId]);
 
-  const actions = useMemo(() => normalizeActions(card?.payments), [card?.payments]);
+  const showPhone = card?.showPhone ?? true;
+  const showEmail = card?.showEmail ?? true;
+  const showSaveContact = card?.showSaveContact ?? true;
 
-  // ✅ privacy toggles (works with camelCase OR snake_case)
-  const showPhone = (card?.showPhone ?? (card as any)?.show_phone ?? true) as boolean;
-  const showEmail = (card?.showEmail ?? (card as any)?.show_email ?? true) as boolean;
-  const showSaveContact = (card?.showSaveContact ?? (card as any)?.show_save_contact ?? true) as boolean;
+  const phoneValue = (card?.payments?.phone ?? "").trim();
+  const emailValue = (card?.payments?.email ?? "").trim();
 
-  const phoneValue = useMemo(() => {
-    const it = actions.find((a) => normalizeType(a.type, a.label, a.value) === "phone");
-    return String(it?.value ?? "").trim();
-  }, [actions]);
-
-  const emailValue = useMemo(() => {
-    const it = actions.find((a) => normalizeType(a.type, a.label, a.value) === "email");
-    return String(it?.value ?? "").trim();
-  }, [actions]);
+  const externalLinks = useMemo(() => {
+    const links = card?.payments?.links ?? [];
+    return links
+      .map((l) => ({
+        ...l,
+        type: normalizeType(l.type, l.label ?? undefined, l.value),
+      }))
+      .filter((l) => {
+        // never show core rails as externals
+        return l.type !== "phone" && l.type !== "email";
+      });
+  }, [card?.payments?.links]);
 
   const canSaveContact =
     status === "claimed" &&
@@ -465,11 +365,7 @@ export default function CardPage() {
 
     setSavingContact(true);
     try {
-      const url =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/c/${cardId}`
-          : "";
-
+      const url = typeof window !== "undefined" ? `${window.location.origin}/c/${cardId}` : "";
       const noteParts: string[] = [];
       if (card?.payLabel?.trim()) noteParts.push(card.payLabel.trim());
       noteParts.push(`VIA card: ${url}`);
@@ -484,80 +380,10 @@ export default function CardPage() {
 
       const safeName = card.displayName.trim().replace(/[^\w\s-]/g, "").trim();
       const filename = `${safeName || "VIA"}-${cardId}.vcf`;
-
       downloadVCard(filename, vcard);
     } finally {
       setSavingContact(false);
     }
-  }
-
-  const paymentTypes: ActionType[] = ["venmo", "cashapp", "paypal", "phone", "email"];
-  const paymentActions = actions.filter((a) => paymentTypes.includes(normalizeType(a.type, a.label, a.value)));
-  const externalActions = actions.filter((a) => !paymentTypes.includes(normalizeType(a.type, a.label, a.value)));
-
-  function renderAction(raw: ActionItem, idx: number) {
-    const type = normalizeType(raw.type, raw.label, raw.value);
-    const value = String(raw.value ?? "").trim();
-    const label = prettyLabel(type, raw.label);
-    const { href, fallback } = buildHref(type, value, raw.url);
-
-    if (type === "phone" && !showPhone) return null;
-    if (type === "email" && !showEmail) return null;
-
-    if (!value && !raw.url) return null;
-
-    const tapText =
-      type === "email" ? "Copy" : type === "phone" ? "Message" : "Open";
-
-    return (
-      <button
-        key={`${raw.id ?? `${type}-${idx}`}`}
-        onClick={async () => {
-          // email copy-only
-          if (type === "email") {
-            await copyText(value);
-            return;
-          }
-
-          // everything else: open if possible, else copy
-          if (href) {
-            await openWithFallback(href, fallback);
-            return;
-          }
-          if (value) await copyText(value);
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          if (value) copyText(value);
-        }}
-        className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-      >
-        <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-          <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
-        </span>
-
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-              <Icon type={type} />
-            </div>
-            <span>{label}</span>
-          </div>
-
-          <span className="text-white/60 text-sm">{tapText}</span>
-        </div>
-
-        <div className="mt-1 text-left text-sm text-white/55 break-all">
-          {raw.url ?? value}
-        </div>
-
-        {(type === "phone" || type === "email") && (
-          <div className="mt-1 text-left text-xs text-white/40">
-            Tap to {type === "phone" ? "message" : "copy"} · Hold to copy
-          </div>
-        )}
-      </button>
-    );
   }
 
   return (
@@ -616,9 +442,7 @@ export default function CardPage() {
                   </h1>
 
                   {card?.bio?.trim() ? (
-                    <p className="mt-3 text-sm text-white/60 leading-relaxed">
-                      {card.bio}
-                    </p>
+                    <p className="mt-3 text-sm text-white/60 leading-relaxed">{card.bio}</p>
                   ) : (
                     <p className="mt-3 text-sm text-white/40"> </p>
                   )}
@@ -633,20 +457,155 @@ export default function CardPage() {
                 </div>
 
                 <div className="mt-10 space-y-4">
-                  {paymentActions.length > 0 && (
-                    <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
-                      PAYMENTS
-                    </div>
-                  )}
-                  {paymentActions.map((a, i) => renderAction(a, i))}
+                  <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
+                    PAYMENTS
+                  </div>
 
-                  {externalActions.length > 0 && (
+                  {/* Phone rail (tap -> messages) */}
+                  {showPhone && !!phoneValue && (
+                    <button
+                      onClick={() => (window.location.href = `sms:${digitsOnlyPhone(phoneValue)}`)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        copyText(phoneValue);
+                      }}
+                      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+                    >
+                      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                        <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                      </span>
+
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                            <Phone className="h-5 w-5" />
+                          </div>
+                          <span>Phone</span>
+                        </div>
+                        <span className="text-white/60 text-sm">Message</span>
+                      </div>
+
+                      <div className="mt-1 text-left text-sm text-white/55 break-all">{phoneValue}</div>
+                      <div className="mt-1 text-left text-xs text-white/40">
+                        Tap to message · Hold to copy
+                      </div>
+                    </button>
+                  )}
+
+                  {/* Email rail (copy only) */}
+                  {showEmail && !!emailValue && (
+                    <button
+                      onClick={() => copyText(emailValue)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        copyText(emailValue);
+                      }}
+                      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+                    >
+                      <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                        <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                      </span>
+
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                            <Mail className="h-5 w-5" />
+                          </div>
+                          <span>Email</span>
+                        </div>
+                        <span className="text-white/60 text-sm">Copy</span>
+                      </div>
+
+                      <div className="mt-1 text-left text-sm text-white/55 break-all">{emailValue}</div>
+                      <div className="mt-1 text-left text-xs text-white/40">Tap to copy · Hold to copy</div>
+                    </button>
+                  )}
+
+                  {/* Payment links (venmo/cashapp/paypal + anything else stored as payment types) */}
+                  {(card?.payments?.links ?? [])
+                    .map((it) => ({ ...it, type: normalizeType(it.type, it.label ?? undefined, it.value) }))
+                    .filter((it) => it.type === "venmo" || it.type === "cashapp" || it.type === "paypal")
+                    .map((it, idx) => {
+                      const t = it.type;
+                      const href = buildHref(t, it.value);
+                      const label = prettyLabel(t, it.label);
+
+                      return (
+                        <button
+                          key={`${it.id}-${idx}`}
+                          onClick={() => {
+                            if (href) window.location.href = href;
+                            else copyText(it.value);
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            copyText(it.value);
+                          }}
+                          className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+                        >
+                          <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                            <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                          </span>
+
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                                <Icon type={t} />
+                              </div>
+                              <span>{label}</span>
+                            </div>
+                            <span className="text-white/60 text-sm">Open</span>
+                          </div>
+
+                          <div className="mt-1 text-left text-sm text-white/55 break-all">{it.value}</div>
+                        </button>
+                      );
+                    })}
+
+                  {/* External */}
+                  {externalLinks.length > 0 && (
                     <div className="pt-2 text-xs tracking-[0.35em] text-white/45 mb-2">
                       EXTERNAL LINKS
                     </div>
                   )}
-                  {externalActions.map((a, i) => renderAction(a, i))}
-                  
+
+                  {externalLinks.map((it, idx) => {
+                    const t = normalizeType(it.type, it.label ?? undefined, it.value);
+                    const href = buildHref(t, it.value);
+                    const label = prettyLabel(t, it.label);
+
+                    return (
+                      <button
+                        key={`${it.id}-${idx}`}
+                        onClick={() => {
+                          if (href) window.location.href = href;
+                          else copyText(it.value);
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          copyText(it.value);
+                        }}
+                        className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+                      >
+                        <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                          <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                        </span>
+
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                              <Icon type={t} />
+                            </div>
+                            <span>{label}</span>
+                          </div>
+                          <span className="text-white/60 text-sm">{href ? "Open" : "Copy"}</span>
+                        </div>
+
+                        <div className="mt-1 text-left text-sm text-white/55 break-all">{it.value}</div>
+                      </button>
+                    );
+                  })}
+
                   {!ownerCheck.isOwner && showSaveContact && (
                     <button
                       onClick={saveContact}
@@ -658,9 +617,7 @@ export default function CardPage() {
                       </span>
                       {savingContact ? "Preparing contact…" : "Save Contact"}
                       {!phoneValue && (
-                        <div className="mt-1 text-left text-sm text-white/55">
-                          No phone number added yet.
-                        </div>
+                        <div className="mt-1 text-left text-sm text-white/55">No phone number added yet.</div>
                       )}
                     </button>
                   )}
@@ -678,28 +635,12 @@ export default function CardPage() {
                   )}
                 </div>
 
-                {!!message && (
-                  <p className="mt-6 text-center text-sm text-white/55">{message}</p>
-                )}
+                {!!message && <p className="mt-6 text-center text-sm text-white/55">{message}</p>}
               </>
-            )}
-
-            {status === "notfound" && (
-              <p className="text-center text-sm text-white/55">
-                {message || "Card not found."}
-              </p>
-            )}
-
-            {status === "error" && (
-              <p className="text-center text-sm text-white/55">
-                {message || "Something went wrong."}
-              </p>
             )}
           </div>
 
-          <p className="mt-6 text-center text-[11px] tracking-widest text-white/30">
-            VIA · Tap to pay
-          </p>
+          <p className="mt-6 text-center text-[11px] tracking-widest text-white/30">VIA · Tap to pay</p>
         </div>
       </div>
 

@@ -1,39 +1,82 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+type LinkType =
+  | "venmo"
+  | "cashapp"
+  | "paypal"
+  | "instagram"
+  | "tiktok"
+  | "youtube"
+  | "x"
+  | "website"
+  | "other"
+  | "custom"; // keep for backwards compatibility
+
 type LinkItem = {
   id: string;
-  type: "venmo" | "cashapp" | "paypal" | "custom";
+  type: LinkType;
   label: string;
-  value: string; // username/handle/link text
-  url?: string | null; // optional direct URL override
+  value: string; // handle / username / url text
+  url?: string | null; // optional override
 };
 
-function prettyLabel(key: string) {
-  const map: Record<string, string> = {
+function prettyLabel(type: LinkType, fallback?: any) {
+  if (typeof fallback === "string" && fallback.trim()) return fallback.trim();
+
+  const map: Record<LinkType, string> = {
     venmo: "Venmo",
     cashapp: "Cash App",
     paypal: "PayPal",
+    instagram: "Instagram",
+    tiktok: "TikTok",
+    youtube: "YouTube",
+    x: "X",
+    website: "Website",
+    other: "Link",
+    custom: "Link",
   };
-  const k = (key ?? "").toLowerCase();
-  return (
-    map[k] ??
-    String(key ?? "Link")
-      .replace(/[_-]/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase())
-  );
+  return map[type] ?? "Link";
 }
 
-function coerceType(raw: any): LinkItem["type"] {
-  const t = String(raw ?? "").toLowerCase();
-  if (t.includes("venmo")) return "venmo";
-  if (t.includes("cash")) return "cashapp";
-  if (t.includes("paypal")) return "paypal";
-  return "custom";
+function normalizeType(raw: any, label?: any, value?: any): LinkType {
+  const t = String(raw ?? "").toLowerCase().trim();
+  const l = String(label ?? "").toLowerCase().trim();
+  const v = String(value ?? "").toLowerCase().trim();
+  const s = `${t} ${l} ${v}`;
+
+  // core
+  if (t === "phone" || s.includes("phone")) return "other"; // never keep phone in links
+  if (t === "email" || s.includes("email")) return "other"; // never keep email in links
+
+  // payments
+  if (t.includes("venmo") || s.includes("venmo")) return "venmo";
+  if (t.includes("cash") || s.includes("cashapp") || s.includes("cash app")) return "cashapp";
+  if (t.includes("paypal") || s.includes("paypal")) return "paypal";
+
+  // socials
+  if (t.includes("instagram") || s.includes("instagram")) return "instagram";
+  if (t.includes("tiktok") || s.includes("tiktok")) return "tiktok";
+  if (t.includes("youtube") || s.includes("youtube") || s.includes("youtu.be")) return "youtube";
+  if (t === "x" || t === "twitter" || s.includes("x.com") || s.includes("twitter.com")) return "x";
+
+  // website
+  if (t.includes("website")) return "website";
+  if (v.startsWith("http://") || v.startsWith("https://")) return "website";
+  if (v.includes(".") && !v.includes(" ")) return "website";
+
+  // fallback
+  if (t === "other") return "other";
+  if (t === "custom") return "custom";
+  return "other";
+}
+
+function safeStr(v: any) {
+  return typeof v === "string" ? v : "";
 }
 
 function normalizePayments(paymentsJson: any) {
-  // Target shape returned to /c:
+  // Returned shape:
   // { phone: string|null, email: string|null, links: LinkItem[] }
 
   const safeEmpty = {
@@ -44,64 +87,58 @@ function normalizePayments(paymentsJson: any) {
 
   if (!paymentsJson || typeof paymentsJson !== "object") return safeEmpty;
 
+  const phone =
+    typeof paymentsJson.phone === "string" ? paymentsJson.phone.trim() : null;
+  const email =
+    typeof paymentsJson.email === "string" ? paymentsJson.email.trim() : null;
+
   // ✅ New shape: { phone, email, links: [...] }
-  if ("links" in paymentsJson && Array.isArray((paymentsJson as any).links)) {
-    const links = (paymentsJson as any).links
+  if (Array.isArray(paymentsJson.links)) {
+    const links = paymentsJson.links
       .filter((x: any) => x && typeof x === "object")
       .map((x: any) => {
         const id = typeof x.id === "string" ? x.id : crypto.randomUUID();
-        const type = coerceType(x.type ?? x.kind ?? x.label);
+
+        const value = safeStr(x.value).trim() || safeStr(x.url).trim() || "";
+        const url = typeof x.url === "string" ? x.url.trim() : null;
+
+        const type = normalizeType(x.type ?? x.kind ?? x.label, x.label, value);
+
+        // strip phone/email from links if they accidentally got saved there
+        if (type === "other") {
+          const maybe = String(x.type ?? x.kind ?? x.label ?? "").toLowerCase();
+          if (maybe.includes("phone") || maybe.includes("email")) return null;
+        }
+
         const label =
           typeof x.label === "string" && x.label.trim()
             ? x.label.trim()
             : prettyLabel(type);
 
-        // IMPORTANT: setup saves "value" (not "url")
-        const value =
-          typeof x.value === "string"
-            ? x.value.trim()
-            : typeof x.url === "string"
-            ? x.url.trim()
-            : "";
-
-        const url = typeof x.url === "string" ? x.url.trim() : null;
-
-        return { id, type, label, value, url };
+        return { id, type, label, value, url } as LinkItem;
       })
-      .filter((x: LinkItem) => !!x.value || !!x.url);
+      .filter((x: LinkItem | null) => !!x && (!!x.value || !!x.url)) as LinkItem[];
 
-    return {
-      phone:
-        typeof (paymentsJson as any).phone === "string"
-          ? (paymentsJson as any).phone
-          : null,
-      email:
-        typeof (paymentsJson as any).email === "string"
-          ? (paymentsJson as any).email
-          : null,
-      links,
-    };
+    return { phone: phone || null, email: email || null, links };
   }
 
-  // ✅ Array shape: [{ type, label, value }] (older ordered list)
+  // ✅ Array shape: [{ type, label, value }]
   if (Array.isArray(paymentsJson)) {
     const links = paymentsJson
       .filter((x: any) => x && typeof x === "object")
       .map((x: any) => {
         const id = typeof x.id === "string" ? x.id : crypto.randomUUID();
-        const type = coerceType(x.type ?? x.kind ?? x.label);
+        const value = safeStr(x.value).trim() || safeStr(x.url).trim() || "";
+        const url = typeof x.url === "string" ? x.url.trim() : null;
+
+        const type = normalizeType(x.type ?? x.kind ?? x.label, x.label, value);
+
         const label =
           typeof x.label === "string" && x.label.trim()
             ? x.label.trim()
             : prettyLabel(type);
-        const value =
-          typeof x.value === "string"
-            ? x.value.trim()
-            : typeof x.url === "string"
-            ? x.url.trim()
-            : "";
-        const url = typeof x.url === "string" ? x.url.trim() : null;
-        return { id, type, label, value, url };
+
+        return { id, type, label, value, url } as LinkItem;
       })
       .filter((x: LinkItem) => !!x.value || !!x.url);
 
@@ -114,28 +151,18 @@ function normalizePayments(paymentsJson: any) {
     if (key === "phone" || key === "email") continue;
 
     if (typeof value === "string" && value.trim()) {
-      const type = coerceType(key);
+      const type = normalizeType(key, key, value);
       links.push({
         id: crypto.randomUUID(),
         type,
-        label: prettyLabel(key),
+        label: prettyLabel(type, key),
         value: value.trim(),
         url: null,
       });
     }
   }
 
-  return {
-    phone:
-      typeof (paymentsJson as any).phone === "string"
-        ? (paymentsJson as any).phone
-        : null,
-    email:
-      typeof (paymentsJson as any).email === "string"
-        ? (paymentsJson as any).email
-        : null,
-    links,
-  };
+  return { phone: phone || null, email: email || null, links };
 }
 
 export async function GET(req: Request) {
@@ -201,6 +228,7 @@ export async function GET(req: Request) {
       photoUrl: (data as any).photo_url ?? null,
       payLabel: (data as any).pay_label ?? null,
 
+      // ✅ camelCase for /c
       showPhone: (data as any).show_phone ?? true,
       showEmail: (data as any).show_email ?? true,
       showSaveContact: (data as any).show_save_contact ?? true,
