@@ -35,6 +35,7 @@ type PublicCardPayload = {
       type: string;
       label?: string | null;
       value: string;
+      url?: string | null;
     }>;
   };
 };
@@ -51,25 +52,30 @@ function normalizeType(t?: string, label?: string, value?: string) {
   const v = String(value ?? "").toLowerCase().trim();
   const s = `${raw} ${l} ${v}`;
 
+  // payments
   if (raw === "venmo" || s.includes("venmo")) return "venmo";
   if (raw === "cashapp" || raw === "cash" || s.includes("cashapp") || s.includes("cash app"))
     return "cashapp";
   if (raw === "paypal" || s.includes("paypal")) return "paypal";
 
+  // socials
   if (raw === "instagram" || s.includes("instagram")) return "instagram";
   if (raw === "tiktok" || s.includes("tiktok")) return "tiktok";
   if (raw === "youtube" || s.includes("youtube") || s.includes("youtu.be")) return "youtube";
-  if (raw === "x" || raw === "twitter" || s.includes("x.com") || s.includes("twitter"))
+  if (raw === "x" || raw === "twitter" || s.includes("x.com") || s.includes("twitter.com"))
     return "x";
 
-  if (raw === "website" || s.includes("http") || (v.includes(".") && !v.includes(" ")))
-    return "website";
+  // website
+  if (raw === "website" || s.includes("http")) return "website";
+  if (v.includes(".") && !v.includes(" ")) return "website";
 
-  if (raw === "other") return "other";
   return raw || "other";
 }
 
 function prettyLabel(type: string, fallback?: string | null) {
+  const f = (fallback ?? "").trim();
+  if (f) return f;
+
   if (type === "venmo") return "Venmo";
   if (type === "cashapp") return "Cash App";
   if (type === "paypal") return "PayPal";
@@ -78,7 +84,7 @@ function prettyLabel(type: string, fallback?: string | null) {
   if (type === "youtube") return "YouTube";
   if (type === "x") return "X";
   if (type === "website") return "Website";
-  return (fallback?.trim() || "Link");
+  return "Link";
 }
 
 function ensureHttp(v: string) {
@@ -89,7 +95,9 @@ function ensureHttp(v: string) {
   return "";
 }
 
-function buildHref(type: string, value: string) {
+function buildHref(type: string, value: string, url?: string | null) {
+  if (url && url.trim()) return url.trim();
+
   const v = (value ?? "").trim();
   if (!v) return "";
 
@@ -99,10 +107,12 @@ function buildHref(type: string, value: string) {
     const handle = v.startsWith("@") ? v.slice(1) : v;
     return `https://venmo.com/${encodeURIComponent(handle)}`;
   }
+
   if (type === "cashapp") {
     const tag = v.startsWith("$") ? v.slice(1) : v;
     return `https://cash.app/${encodeURIComponent(tag)}`;
   }
+
   if (type === "paypal") {
     if (/paypal\.me\//i.test(v)) return v.startsWith("http") ? v : `https://${v}`;
     const user = v.replace(/^@/, "");
@@ -113,27 +123,25 @@ function buildHref(type: string, value: string) {
     const h = v.replace(/^@/, "");
     return `https://instagram.com/${encodeURIComponent(h)}`;
   }
+
   if (type === "tiktok") {
     const h = v.replace(/^@/, "");
     return `https://www.tiktok.com/@${encodeURIComponent(h)}`;
   }
+
   if (type === "youtube") {
-    // allow full url or channel handle
     if (v.startsWith("@")) return `https://www.youtube.com/${encodeURIComponent(v)}`;
     const maybe = ensureHttp(v);
     return maybe || "";
   }
+
   if (type === "x") {
     const h = v.replace(/^@/, "");
     return `https://x.com/${encodeURIComponent(h)}`;
   }
 
-  if (type === "website" || type === "other") {
-    const maybe = ensureHttp(v);
-    return maybe || "";
-  }
-
-  return "";
+  // website/other/custom: treat as URL-ish if possible
+  return ensureHttp(v);
 }
 
 function BrandSvg({ path, viewBox = "0 0 24 24" }: { path: string; viewBox?: string }) {
@@ -158,7 +166,9 @@ function Icon({ type }: { type: string }) {
   return null;
 }
 
-// vCard helpers unchanged from your file
+// ------------------------
+// Save Contact helpers
+// ------------------------
 function vEscape(v: string) {
   return (v ?? "")
     .replace(/\r\n/g, "\n")
@@ -167,6 +177,7 @@ function vEscape(v: string) {
     .replace(/,/g, "\\,")
     .replace(/;/g, "\\;");
 }
+
 function splitName(full: string) {
   const t = (full ?? "").trim();
   if (!t) return { first: "", last: "" };
@@ -175,6 +186,7 @@ function splitName(full: string) {
   const last = parts.slice(1).join(" ");
   return { first, last };
 }
+
 function buildVCard(opts: {
   fullName: string;
   phone?: string;
@@ -183,31 +195,40 @@ function buildVCard(opts: {
   url?: string;
 }) {
   const { first, last } = splitName(opts.fullName);
+
   const lines: string[] = [];
   lines.push("BEGIN:VCARD");
   lines.push("VERSION:3.0");
   lines.push(`N:${vEscape(last)};${vEscape(first)};;;`);
   lines.push(`FN:${vEscape(opts.fullName)}`);
+
   const phone = (opts.phone ?? "").trim();
   if (phone) lines.push(`TEL;TYPE=CELL:${vEscape(phone)}`);
+
   const email = (opts.email ?? "").trim();
   if (email) lines.push(`EMAIL;TYPE=INTERNET:${vEscape(email)}`);
+
   const url = (opts.url ?? "").trim();
   if (url) lines.push(`URL:${vEscape(url)}`);
+
   const note = (opts.note ?? "").trim();
   if (note) lines.push(`NOTE:${vEscape(note)}`);
+
   lines.push("END:VCARD");
   return lines.join("\r\n");
 }
+
 function downloadVCard(filename: string, vcard: string) {
   const blob = new Blob([vcard], { type: "text/vcard;charset=utf-8" });
   const url = URL.createObjectURL(blob);
+
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -248,10 +269,9 @@ export default function CardPage() {
   async function refreshOwner() {
     try {
       setOwnerCheck((p) => ({ ...p, loading: true }));
-      const res = await fetch(
-        `/api/card-is-owner?cardId=${encodeURIComponent(cardId)}`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(`/api/card-is-owner?cardId=${encodeURIComponent(cardId)}`, {
+        cache: "no-store",
+      });
       if (!res.ok) {
         setOwnerCheck({ loading: false, signedIn: false, isOwner: false });
         return;
@@ -265,7 +285,9 @@ export default function CardPage() {
 
   useEffect(() => {
     refreshOwner();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => refreshOwner());
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => refreshOwner());
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId]);
@@ -313,7 +335,9 @@ export default function CardPage() {
             const j = await res2.json();
             details = j?.details || j?.error || "";
           } catch {}
-          if (!cancelled) setMessage(details ? `Could not load card: ${details}` : "Could not load card.");
+          if (!cancelled) {
+            setMessage(details ? `Could not load card details: ${details}` : "Could not load card details.");
+          }
           return;
         }
 
@@ -340,18 +364,30 @@ export default function CardPage() {
   const phoneValue = (card?.payments?.phone ?? "").trim();
   const emailValue = (card?.payments?.email ?? "").trim();
 
-  const externalLinks = useMemo(() => {
+  // ✅ Normalize ONCE and preserve order from setup
+  const orderedLinks = useMemo(() => {
     const links = card?.payments?.links ?? [];
-    return links
-      .map((l) => ({
+    return links.map((l) => {
+      const type = normalizeType(l.type, l.label ?? undefined, l.value);
+      return {
         ...l,
-        type: normalizeType(l.type, l.label ?? undefined, l.value),
-      }))
-      .filter((l) => {
-        // never show core rails as externals
-        return l.type !== "phone" && l.type !== "email";
-      });
+        type,
+        label: prettyLabel(type, l.label ?? null),
+      };
+    });
   }, [card?.payments?.links]);
+
+  // ✅ Payments only (prevents duplicates + keeps order)
+  const paymentLinks = useMemo(() => {
+    return orderedLinks.filter((l) => l.type === "venmo" || l.type === "cashapp" || l.type === "paypal");
+  }, [orderedLinks]);
+
+  // ✅ External only (prevents venmo/cashapp/paypal duplicates)
+  const externalLinks = useMemo(() => {
+    return orderedLinks.filter(
+      (l) => l.type !== "venmo" && l.type !== "cashapp" && l.type !== "paypal"
+    );
+  }, [orderedLinks]);
 
   const canSaveContact =
     status === "claimed" &&
@@ -366,6 +402,7 @@ export default function CardPage() {
     setSavingContact(true);
     try {
       const url = typeof window !== "undefined" ? `${window.location.origin}/c/${cardId}` : "";
+
       const noteParts: string[] = [];
       if (card?.payLabel?.trim()) noteParts.push(card.payLabel.trim());
       noteParts.push(`VIA card: ${url}`);
@@ -380,6 +417,7 @@ export default function CardPage() {
 
       const safeName = card.displayName.trim().replace(/[^\w\s-]/g, "").trim();
       const filename = `${safeName || "VIA"}-${cardId}.vcf`;
+
       downloadVCard(filename, vcard);
     } finally {
       setSavingContact(false);
@@ -457,11 +495,9 @@ export default function CardPage() {
                 </div>
 
                 <div className="mt-10 space-y-4">
-                  <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
-                    PAYMENTS
-                  </div>
+                  <div className="text-xs tracking-[0.35em] text-white/45 mb-2">PAYMENTS</div>
 
-                  {/* Phone rail (tap -> messages) */}
+                  {/* Phone (tap -> messages, hold -> copy) */}
                   {showPhone && !!phoneValue && (
                     <button
                       onClick={() => (window.location.href = `sms:${digitsOnlyPhone(phoneValue)}`)}
@@ -486,13 +522,11 @@ export default function CardPage() {
                       </div>
 
                       <div className="mt-1 text-left text-sm text-white/55 break-all">{phoneValue}</div>
-                      <div className="mt-1 text-left text-xs text-white/40">
-                        Tap to message · Hold to copy
-                      </div>
+                      <div className="mt-1 text-left text-xs text-white/40">Tap to message · Hold to copy</div>
                     </button>
                   )}
 
-                  {/* Email rail (copy only) */}
+                  {/* Email (copy only) */}
                   {showEmail && !!emailValue && (
                     <button
                       onClick={() => copyText(emailValue)}
@@ -521,59 +555,9 @@ export default function CardPage() {
                     </button>
                   )}
 
-                  {/* Payment links (venmo/cashapp/paypal + anything else stored as payment types) */}
-                  {(card?.payments?.links ?? [])
-                    .map((it) => ({ ...it, type: normalizeType(it.type, it.label ?? undefined, it.value) }))
-                    .filter((it) => it.type === "venmo" || it.type === "cashapp" || it.type === "paypal")
-                    .map((it, idx) => {
-                      const t = it.type;
-                      const href = buildHref(t, it.value);
-                      const label = prettyLabel(t, it.label);
-
-                      return (
-                        <button
-                          key={`${it.id}-${idx}`}
-                          onClick={() => {
-                            if (href) window.location.href = href;
-                            else copyText(it.value);
-                          }}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            copyText(it.value);
-                          }}
-                          className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-                        >
-                          <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                            <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
-                          </span>
-
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-                                <Icon type={t} />
-                              </div>
-                              <span>{label}</span>
-                            </div>
-                            <span className="text-white/60 text-sm">Open</span>
-                          </div>
-
-                          <div className="mt-1 text-left text-sm text-white/55 break-all">{it.value}</div>
-                        </button>
-                      );
-                    })}
-
-                  {/* External */}
-                  {externalLinks.length > 0 && (
-                    <div className="pt-2 text-xs tracking-[0.35em] text-white/45 mb-2">
-                      EXTERNAL LINKS
-                    </div>
-                  )}
-
-                  {externalLinks.map((it, idx) => {
-                    const t = normalizeType(it.type, it.label ?? undefined, it.value);
-                    const href = buildHref(t, it.value);
-                    const label = prettyLabel(t, it.label);
-
+                  {/* Venmo/CashApp/PayPal in user-defined order (from setup) */}
+                  {paymentLinks.map((it, idx) => {
+                    const href = buildHref(it.type, it.value, it.url ?? null);
                     return (
                       <button
                         key={`${it.id}-${idx}`}
@@ -594,9 +578,9 @@ export default function CardPage() {
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-                              <Icon type={t} />
+                              <Icon type={it.type} />
                             </div>
-                            <span>{label}</span>
+                            <span>{it.label}</span>
                           </div>
                           <span className="text-white/60 text-sm">{href ? "Open" : "Copy"}</span>
                         </div>
@@ -606,6 +590,48 @@ export default function CardPage() {
                     );
                   })}
 
+                  {/* External links (instagram, website, etc) */}
+                  {externalLinks.length > 0 && (
+                    <div className="pt-2 text-xs tracking-[0.35em] text-white/45 mb-2">
+                      EXTERNAL LINKS
+                    </div>
+                  )}
+
+                  {externalLinks.map((it, idx) => {
+                    const href = buildHref(it.type, it.value, it.url ?? null);
+                    return (
+                      <button
+                        key={`${it.id}-${idx}`}
+                        onClick={() => {
+                          if (href) window.location.href = href;
+                          else copyText(it.value);
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          copyText(it.value);
+                        }}
+                        className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+                      >
+                        <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                          <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+                        </span>
+
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                              <Icon type={it.type} />
+                            </div>
+                            <span>{it.label}</span>
+                          </div>
+                          <span className="text-white/60 text-sm">{href ? "Open" : "Copy"}</span>
+                        </div>
+
+                        <div className="mt-1 text-left text-sm text-white/55 break-all">{it.value}</div>
+                      </button>
+                    );
+                  })}
+
+                  {/* Viewer-only Save Contact */}
                   {!ownerCheck.isOwner && showSaveContact && (
                     <button
                       onClick={saveContact}
@@ -617,11 +643,14 @@ export default function CardPage() {
                       </span>
                       {savingContact ? "Preparing contact…" : "Save Contact"}
                       {!phoneValue && (
-                        <div className="mt-1 text-left text-sm text-white/55">No phone number added yet.</div>
+                        <div className="mt-1 text-left text-sm text-white/55">
+                          No phone number added yet.
+                        </div>
                       )}
                     </button>
                   )}
 
+                  {/* Owner-only Setup/Edit */}
                   {ownerCheck.isOwner && (
                     <button
                       onClick={() => (window.location.href = `/setup/${cardId}`)}
@@ -635,8 +664,18 @@ export default function CardPage() {
                   )}
                 </div>
 
-                {!!message && <p className="mt-6 text-center text-sm text-white/55">{message}</p>}
+                {!!message && (
+                  <p className="mt-6 text-center text-sm text-white/55">{message}</p>
+                )}
               </>
+            )}
+
+            {status === "notfound" && (
+              <p className="text-center text-sm text-white/55">{message || "Card not found."}</p>
+            )}
+
+            {status === "error" && (
+              <p className="text-center text-sm text-white/55">{message || "Something went wrong."}</p>
             )}
           </div>
 
@@ -644,6 +683,7 @@ export default function CardPage() {
         </div>
       </div>
 
+      {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-[#121214]/90 px-4 py-2 text-sm text-white/85 shadow-[0_20px_80px_rgba(0,0,0,0.6)] backdrop-blur">
           {toast}
