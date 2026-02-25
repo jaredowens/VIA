@@ -62,11 +62,11 @@ function normalizeHandle(input: string) {
 }
 
 function typeLabel(t: ActionType, label?: string) {
-  if (t === "phone") return "Direct Phone";
-  if (t === "email") return "Email";
   if (t === "venmo") return "Venmo";
   if (t === "cashapp") return "Cash App";
   if (t === "paypal") return "PayPal";
+  if (t === "phone") return "Phone";
+  if (t === "email") return "Email";
   if (t === "instagram") return "Instagram";
   if (t === "tiktok") return "TikTok";
   if (t === "youtube") return "YouTube";
@@ -75,10 +75,18 @@ function typeLabel(t: ActionType, label?: string) {
   return label?.trim() || "Other";
 }
 
-function coerceToActions(p: any): {
-  actions: ActionItem[];
-} {
-  // Default order if nothing exists yet
+function placeholderFor(t: ActionType) {
+  if (t === "venmo") return "Username (no @)";
+  if (t === "cashapp") return "Cashtag (no $)";
+  if (t === "paypal") return "Link";
+  if (t === "phone") return "Phone Number";
+  if (t === "email") return "Email";
+  if (t === "website") return "example.com";
+  if (t === "other") return "Handle or URL";
+  return "@handle";
+}
+
+function coerceToActions(p: any): ActionItem[] {
   const base: ActionItem[] = [
     { id: uid(), type: "venmo", value: "" },
     { id: uid(), type: "cashapp", value: "" },
@@ -87,9 +95,8 @@ function coerceToActions(p: any): {
     { id: uid(), type: "email", value: "" },
   ];
 
-  if (!p || typeof p !== "object") return { actions: base };
+  if (!p || typeof p !== "object") return base;
 
-  // Preferred: payments_json.links stores ordered action list
   if (Array.isArray(p.links)) {
     const actions = (p.links as any[]).map((x: any): ActionItem => ({
       id: String(x?.id ?? uid()),
@@ -98,7 +105,6 @@ function coerceToActions(p: any): {
       value: String(x?.value ?? ""),
     }));
 
-    // Ensure core items exist (in case older records missing them)
     const ensure = (t: ActionType) => {
       if (!actions.some((a) => a.type === t)) actions.push({ id: uid(), type: t, value: "" });
     };
@@ -108,7 +114,7 @@ function coerceToActions(p: any): {
     ensure("phone");
     ensure("email");
 
-    // Pull top-level values into the matching core items if present
+    // sync legacy keys -> core items if needed
     if (typeof p.venmo === "string") {
       const a = actions.find((x) => x.type === "venmo");
       if (a && !a.value.trim()) a.value = p.venmo;
@@ -130,12 +136,11 @@ function coerceToActions(p: any): {
       if (a && !a.value.trim()) a.value = p.email;
     }
 
-    return { actions };
+    return actions;
   }
 
-  // Legacy object: build actions from known keys
+  // legacy object
   const actions = [...base];
-
   const setCore = (t: ActionType, v: string) => {
     const a = actions.find((x) => x.type === t);
     if (a) a.value = v;
@@ -147,7 +152,7 @@ function coerceToActions(p: any): {
   if (typeof p.phone === "string") setCore("phone", p.phone);
   if (typeof p.email === "string") setCore("email", p.email);
 
-  return { actions };
+  return actions;
 }
 
 export default function SetupPage() {
@@ -187,17 +192,13 @@ export default function SetupPage() {
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) {
-        window.location.href = `/login?returnTo=${encodeURIComponent(
-          `/setup/${cardId}`
-        )}`;
+        window.location.href = `/login?returnTo=${encodeURIComponent(`/setup/${cardId}`)}`;
         return;
       }
 
       const { data, error } = await supabase
         .from("cards")
-        .select(
-          "id, owner_user_id, display_name, bio, photo_url, pay_label, payments_json, show_phone, show_email, show_save_contact"
-        )
+        .select("id, owner_user_id, display_name, bio, photo_url, pay_label, payments_json, show_phone, show_email, show_save_contact")
         .eq("id", cardId)
         .maybeSingle();
 
@@ -244,8 +245,7 @@ export default function SetupPage() {
       setPhotoUrl(row.photo_url ?? "");
       setPayLabel(row.pay_label ?? "");
 
-      const parsed = coerceToActions(row.payments_json);
-      setActions(parsed.actions);
+      setActions(coerceToActions(row.payments_json));
 
       setShowPhone(row.show_phone ?? true);
       setShowEmail(row.show_email ?? true);
@@ -313,11 +313,10 @@ export default function SetupPage() {
       return;
     }
 
-    // phone required (pull from action list)
     const phoneItem = actions.find((a) => a.type === "phone");
     const phoneNorm = normalizePhone(phoneItem?.value ?? "");
     if (!phoneNorm) {
-      setMsg("Direct phone number is required.");
+      setMsg("Phone number is required.");
       return;
     }
 
@@ -332,9 +331,7 @@ export default function SetupPage() {
         if (a.type === "cashapp") v = normalizeCashAppTag(v);
         if (a.type === "paypal") v = normalizePaypal(v);
 
-        if (a.type === "instagram" || a.type === "tiktok" || a.type === "x") {
-          v = normalizeHandle(v);
-        }
+        if (a.type === "instagram" || a.type === "tiktok" || a.type === "x") v = normalizeHandle(v);
 
         if (a.type === "email") v = normalizeEmail(v);
         if (a.type === "phone") v = normalizePhone(v);
@@ -347,7 +344,6 @@ export default function SetupPage() {
         };
       });
 
-      // Legacy keys still present for compatibility
       const venmo = cleaned.find((x) => x.type === "venmo")?.value ?? "";
       const cashapp = cleaned.find((x) => x.type === "cashapp")?.value ?? "";
       const paypal = cleaned.find((x) => x.type === "paypal")?.value ?? "";
@@ -359,7 +355,6 @@ export default function SetupPage() {
         paypal,
         phone: phoneNorm,
         email,
-        // SINGLE SOURCE OF TRUTH for ordering:
         links: cleaned,
       };
 
@@ -389,6 +384,10 @@ export default function SetupPage() {
     }
   }
 
+  const paymentTypes: ActionType[] = ["venmo", "cashapp", "paypal", "phone", "email"];
+  const payments = actions.filter((a) => paymentTypes.includes(a.type));
+  const external = actions.filter((a) => !paymentTypes.includes(a.type));
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
       <div className="pointer-events-none absolute inset-0">
@@ -407,12 +406,8 @@ export default function SetupPage() {
           </div>
 
           <div className="text-center">
-            <h1 className="text-lg font-medium tracking-wide text-white/90">
-              Setup Your Card
-            </h1>
-            <p className="mt-3 text-[12px] tracking-[0.35em] text-white/45">
-              {cardId}
-            </p>
+            <h1 className="text-lg font-medium tracking-wide text-white/90">Setup Your Card</h1>
+            <p className="mt-3 text-[12px] tracking-[0.35em] text-white/45">{cardId}</p>
           </div>
 
           {loading ? (
@@ -430,9 +425,7 @@ export default function SetupPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs tracking-wider text-white/60 mb-2">
-                      PREFERRED FIRST NAME
-                    </label>
+                    <label className="block text-xs tracking-wider text-white/60 mb-2">PREFERRED FIRST NAME</label>
                     <input
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
@@ -441,9 +434,7 @@ export default function SetupPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs tracking-wider text-white/60 mb-2">
-                      PREFERRED LAST NAME
-                    </label>
+                    <label className="block text-xs tracking-wider text-white/60 mb-2">PREFERRED LAST NAME</label>
                     <input
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
@@ -453,9 +444,7 @@ export default function SetupPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    NOTE (OPTIONAL)
-                  </label>
+                  <label className="block text-xs tracking-wider text-white/60 mb-2">NOTE (OPTIONAL)</label>
                   <textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
@@ -464,9 +453,7 @@ export default function SetupPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs tracking-wider text-white/60 mb-2">
-                    PAY LABEL (OPTIONAL)
-                  </label>
+                  <label className="block text-xs tracking-wider text-white/60 mb-2">PAY LABEL (OPTIONAL)</label>
                   <input
                     value={payLabel}
                     onChange={(e) => setPayLabel(e.target.value)}
@@ -475,27 +462,20 @@ export default function SetupPage() {
                 </div>
               </div>
 
-              {/* ACTIONS */}
+              {/* PAYMENTS */}
               <div className="space-y-4">
-                <div className="text-xs tracking-[0.35em] text-white/45">
-                  ACTIONS (ORDERED)
-                </div>
+                <div className="text-xs tracking-[0.35em] text-white/45">PAYMENTS (ORDERED)</div>
 
                 <div className="space-y-3">
-                  {actions.map((a, idx) => (
-                    <div
-                      key={a.id}
-                      className="rounded-2xl border border-white/12 bg-white/5 p-4"
-                    >
+                  {payments.map((a, idx) => (
+                    <div key={a.id} className="rounded-2xl border border-white/12 bg-white/5 p-4">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium text-white/90">
-                          {typeLabel(a.type, a.label)}
-                        </div>
+                        <div className="text-sm font-medium text-white/90">{typeLabel(a.type, a.label)}</div>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => moveAction(a.id, -1)}
-                            disabled={idx === 0}
+                            disabled={actions.findIndex((x) => x.id === a.id) === 0}
                             className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
                           >
                             Up
@@ -503,80 +483,110 @@ export default function SetupPage() {
                           <button
                             type="button"
                             onClick={() => moveAction(a.id, 1)}
-                            disabled={idx === actions.length - 1}
+                            disabled={actions.findIndex((x) => x.id === a.id) === actions.length - 1}
                             className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
                           >
                             Down
                           </button>
-
-                          {/* allow removing only non-core */}
-                          {!["venmo", "cashapp", "paypal", "phone", "email"].includes(a.type) && (
-                            <button
-                              type="button"
-                              onClick={() => removeAction(a.id)}
-                              className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-red-300 hover:bg-white/10"
-                            >
-                              Remove
-                            </button>
-                          )}
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        {a.type === "other" ? (
-                          <div>
-                            <label className="block text-xs tracking-wider text-white/55 mb-2">
-                              LABEL
-                            </label>
-                            <input
-                              value={a.label ?? ""}
-                              onChange={(e) => updateAction(a.id, { label: e.target.value })}
-                              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
-                            />
-                          </div>
-                        ) : (
-                          <div className="hidden sm:block" />
-                        )}
-
-                        <div className={a.type === "other" ? "" : "sm:col-span-2"}>
-                          <label className="block text-xs tracking-wider text-white/55 mb-2">
-                            VALUE
-                          </label>
-                          <input
-                            value={a.value}
-                            onChange={(e) => updateAction(a.id, { value: e.target.value })}
-                            placeholder={
-                              a.type === "venmo"
-                                ? "@username"
-                                : a.type === "cashapp"
-                                ? "$cashtag"
-                                : a.type === "paypal"
-                                ? "paypal.me/..."
-                                : a.type === "phone"
-                                ? "Phone number"
-                                : a.type === "email"
-                                ? "Email"
-                                : a.type === "website"
-                                ? "example.com"
-                                : "@handle or URL"
-                            }
-                            className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
-                          />
-                        </div>
+                      <div className="mt-3">
+                        <label className="block text-xs tracking-wider text-white/55 mb-2">
+                          {a.type === "paypal" ? "LINK" : a.type === "phone" ? "PHONE NUMBER" : a.type === "email" ? "EMAIL" : "VALUE"}
+                        </label>
+                        <input
+                          value={a.value}
+                          onChange={(e) => updateAction(a.id, { value: e.target.value })}
+                          placeholder={placeholderFor(a.type)}
+                          className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                        />
                       </div>
 
-                      {(a.type === "phone" || a.type === "email") && (
+                      {a.type === "phone" && (
                         <p className="mt-2 text-xs text-white/40 tracking-wide">
-                          {a.type === "phone"
-                            ? "Required. Used for messaging + direct transfer."
-                            : "Optional. Tap copies on your public card."}
+                          Required. On card: tap to message, hold to copy.
+                        </p>
+                      )}
+                      {a.type === "email" && (
+                        <p className="mt-2 text-xs text-white/40 tracking-wide">
+                          Optional. On card: tap copies it.
                         </p>
                       )}
                     </div>
                   ))}
                 </div>
+              </div>
 
-                {/* Small Add Link button -> expands */}
+              {/* EXTERNAL LINKS */}
+              <div className="space-y-4">
+                <div className="text-xs tracking-[0.35em] text-white/45">EXTERNAL LINKS (ORDERED)</div>
+
+                {external.length > 0 && (
+                  <div className="space-y-3">
+                    {external.map((a) => {
+                      const idxGlobal = actions.findIndex((x) => x.id === a.id);
+                      return (
+                        <div key={a.id} className="rounded-2xl border border-white/12 bg-white/5 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm font-medium text-white/90">{typeLabel(a.type, a.label)}</div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => moveAction(a.id, -1)}
+                                disabled={idxGlobal === 0}
+                                className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
+                              >
+                                Up
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveAction(a.id, 1)}
+                                disabled={idxGlobal === actions.length - 1}
+                                className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 disabled:opacity-50"
+                              >
+                                Down
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeAction(a.id)}
+                                className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-red-300 hover:bg-white/10"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {a.type === "other" ? (
+                              <div>
+                                <label className="block text-xs tracking-wider text-white/55 mb-2">LABEL</label>
+                                <input
+                                  value={a.label ?? ""}
+                                  onChange={(e) => updateAction(a.id, { label: e.target.value })}
+                                  className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                                />
+                              </div>
+                            ) : (
+                              <div className="hidden sm:block" />
+                            )}
+
+                            <div className={a.type === "other" ? "" : "sm:col-span-2"}>
+                              <label className="block text-xs tracking-wider text-white/55 mb-2">HANDLE OR URL</label>
+                              <input
+                                value={a.value}
+                                onChange={(e) => updateAction(a.id, { value: e.target.value })}
+                                placeholder={placeholderFor(a.type)}
+                                className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {!showAddLink ? (
                   <button
                     type="button"
@@ -600,9 +610,7 @@ export default function SetupPage() {
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <div>
-                        <label className="block text-xs tracking-wider text-white/55 mb-2">
-                          TYPE
-                        </label>
+                        <label className="block text-xs tracking-wider text-white/55 mb-2">TYPE</label>
                         <select
                           value={newType}
                           onChange={(e) => setNewType(e.target.value as ActionType)}
@@ -619,9 +627,7 @@ export default function SetupPage() {
 
                       {newType === "other" ? (
                         <div>
-                          <label className="block text-xs tracking-wider text-white/55 mb-2">
-                            LABEL
-                          </label>
+                          <label className="block text-xs tracking-wider text-white/55 mb-2">LABEL</label>
                           <input
                             value={newLabel}
                             onChange={(e) => setNewLabel(e.target.value)}
@@ -634,19 +640,11 @@ export default function SetupPage() {
                       )}
 
                       <div className={newType === "other" ? "" : "sm:col-span-2"}>
-                        <label className="block text-xs tracking-wider text-white/55 mb-2">
-                          HANDLE OR URL
-                        </label>
+                        <label className="block text-xs tracking-wider text-white/55 mb-2">HANDLE OR URL</label>
                         <input
                           value={newValue}
                           onChange={(e) => setNewValue(e.target.value)}
-                          placeholder={
-                            newType === "website"
-                              ? "example.com"
-                              : newType === "youtube"
-                              ? "@channel or URL"
-                              : "@handle"
-                          }
+                          placeholder={placeholderFor(newType)}
                           className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-white/90 outline-none focus:border-white/20"
                         />
                       </div>
@@ -661,10 +659,6 @@ export default function SetupPage() {
                     </button>
                   </div>
                 )}
-
-                <p className="text-xs text-white/40 tracking-wide">
-                  Tip: reorder with Up/Down — this is the exact order your card shows.
-                </p>
               </div>
 
               {/* PRIVACY */}
@@ -672,29 +666,17 @@ export default function SetupPage() {
                 <div className="text-xs tracking-[0.35em] text-white/45">PRIVACY</div>
 
                 <label className="flex items-center gap-3 text-sm text-white/80">
-                  <input
-                    type="checkbox"
-                    checked={showPhone}
-                    onChange={(e) => setShowPhone(e.target.checked)}
-                  />
+                  <input type="checkbox" checked={showPhone} onChange={(e) => setShowPhone(e.target.checked)} />
                   Show phone on my card
                 </label>
 
                 <label className="flex items-center gap-3 text-sm text-white/80">
-                  <input
-                    type="checkbox"
-                    checked={showEmail}
-                    onChange={(e) => setShowEmail(e.target.checked)}
-                  />
+                  <input type="checkbox" checked={showEmail} onChange={(e) => setShowEmail(e.target.checked)} />
                   Show email on my card
                 </label>
 
                 <label className="flex items-center gap-3 text-sm text-white/80">
-                  <input
-                    type="checkbox"
-                    checked={showSaveContact}
-                    onChange={(e) => setShowSaveContact(e.target.checked)}
-                  />
+                  <input type="checkbox" checked={showSaveContact} onChange={(e) => setShowSaveContact(e.target.checked)} />
                   Allow “Save Contact”
                 </label>
               </div>

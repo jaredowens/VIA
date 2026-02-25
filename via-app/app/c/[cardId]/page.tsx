@@ -24,9 +24,13 @@ type PublicCardPayload = {
   payLabel: string | null;
   payments: any;
 
+  // may arrive as camelCase OR snake_case depending on /api/card-public
   showPhone?: boolean;
   showEmail?: boolean;
   showSaveContact?: boolean;
+  show_phone?: boolean;
+  show_email?: boolean;
+  show_save_contact?: boolean;
 };
 
 type ActionType =
@@ -54,8 +58,34 @@ function digitsOnlyPhone(value: string) {
   return value.replace(/[^\d+]/g, "");
 }
 
-function prettyLabel(t: ActionType, label?: string) {
-  if (t === "phone") return "Direct";
+function normalizeType(t?: string, label?: string, value?: string): ActionType {
+  const raw = String(t ?? "").toLowerCase().trim();
+  const l = String(label ?? "").toLowerCase().trim();
+  const v = String(value ?? "").toLowerCase().trim();
+  const s = `${raw} ${l} ${v}`;
+
+  if (raw === "phone" || s.includes("phone") || s.includes("direct")) return "phone";
+  if (raw === "email" || s.includes("email")) return "email";
+
+  if (raw === "venmo" || s.includes("venmo")) return "venmo";
+  if (raw === "cashapp" || s.includes("cash")) return "cashapp";
+  if (raw === "paypal" || s.includes("paypal")) return "paypal";
+
+  if (raw === "instagram" || s.includes("instagram.com") || s.includes("instagram"))
+    return "instagram";
+  if (raw === "tiktok" || s.includes("tiktok.com") || s.includes("tiktok")) return "tiktok";
+  if (raw === "youtube" || s.includes("youtube.com") || s.includes("youtu.be") || s.includes("youtube"))
+    return "youtube";
+  if (raw === "x" || raw === "twitter" || s.includes("x.com") || s.includes("twitter.com"))
+    return "x";
+  if (raw === "website" || s.includes("website") || s.includes("http") || (v.includes(".") && !v.includes(" ")))
+    return "website";
+
+  return "other";
+}
+
+function prettyLabel(t: ActionType, fallback?: string) {
+  if (t === "phone") return "Phone";
   if (t === "email") return "Email";
   if (t === "venmo") return "Venmo";
   if (t === "cashapp") return "Cash App";
@@ -65,29 +95,7 @@ function prettyLabel(t: ActionType, label?: string) {
   if (t === "youtube") return "YouTube";
   if (t === "x") return "X";
   if (t === "website") return "Website";
-  return (label?.trim() || "Link");
-}
-
-function normalizeType(t?: string, label?: string): ActionType {
-  const raw = String(t ?? "").toLowerCase().trim();
-  const l = String(label ?? "").toLowerCase().trim();
-  const s = `${raw} ${l}`;
-
-  if (raw === "phone" || s.includes("phone") || s.includes("direct")) return "phone";
-  if (raw === "email" || s.includes("email")) return "email";
-
-  if (raw === "venmo" || s.includes("venmo")) return "venmo";
-  if (raw === "cashapp" || s.includes("cash")) return "cashapp";
-  if (raw === "paypal" || s.includes("paypal")) return "paypal";
-
-  if (raw === "instagram" || s.includes("instagram")) return "instagram";
-  if (raw === "tiktok" || s.includes("tiktok")) return "tiktok";
-  if (raw === "youtube" || s.includes("youtube")) return "youtube";
-  if (raw === "x" || s.includes("twitter") || s.includes(" x ")) return "x";
-  if (raw === "website" || s.includes("website") || s.includes("site") || s.includes("web"))
-    return "website";
-
-  return "other";
+  return (fallback?.trim() || "Link");
 }
 
 function ensureHttp(v: string) {
@@ -95,7 +103,7 @@ function ensureHttp(v: string) {
   if (!t) return "";
   if (/^https?:\/\//i.test(t)) return t;
   if (t.includes(".") && !t.includes(" ")) return `https://${t}`;
-  return t;
+  return "";
 }
 
 function buildHref(type: ActionType, value: string, url?: string): { href: string; fallback?: string } {
@@ -104,17 +112,13 @@ function buildHref(type: ActionType, value: string, url?: string): { href: strin
   const v = (value ?? "").trim();
   if (!v) return { href: "" };
 
-  // If user pasted a URL, open it
+  // pasted url => open
   if (/^https?:\/\//i.test(v)) return { href: v };
 
-  if (type === "phone") {
-    return { href: `sms:${digitsOnlyPhone(v)}` };
-  }
+  if (type === "phone") return { href: `sms:${digitsOnlyPhone(v)}` };
 
-  if (type === "email") {
-    // we copy emails on tap (UX you already had), but allow mailto if you want later
-    return { href: "" };
-  }
+  // email stays copy-only by design
+  if (type === "email") return { href: "" };
 
   if (type === "venmo") {
     const handle = v.startsWith("@") ? v.slice(1) : v;
@@ -140,29 +144,23 @@ function buildHref(type: ActionType, value: string, url?: string): { href: strin
     const h = v.replace(/^@/, "");
     return { href: `https://instagram.com/${encodeURIComponent(h)}` };
   }
-
   if (type === "tiktok") {
     const h = v.replace(/^@/, "");
     return { href: `https://www.tiktok.com/@${encodeURIComponent(h)}` };
   }
-
   if (type === "youtube") {
     if (v.startsWith("@")) return { href: `https://www.youtube.com/${encodeURIComponent(v)}` };
-    return { href: ensureHttp(v) };
+    const maybe = ensureHttp(v);
+    return { href: maybe || "" };
   }
-
   if (type === "x") {
     const h = v.replace(/^@/, "");
     return { href: `https://x.com/${encodeURIComponent(h)}` };
   }
 
-  if (type === "website") {
-    return { href: ensureHttp(v) };
-  }
-
-  // other: open if it looks like a domain; else copy-only
+  // website/other: open if it looks like a domain
   const maybe = ensureHttp(v);
-  if (maybe.startsWith("http")) return { href: maybe };
+  if (maybe) return { href: maybe };
   return { href: "" };
 }
 
@@ -173,14 +171,12 @@ async function openWithFallback(href: string, fallback?: string) {
     /^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(href) && !href.startsWith("http");
 
   if (fallback && isAppScheme) {
-    window.location.href = href;
-    setTimeout(() => {
-      window.location.href = fallback;
-    }, 700);
+    window.location.assign(href);
+    setTimeout(() => window.location.assign(fallback), 700);
     return;
   }
 
-  window.location.href = href;
+  window.location.assign(href);
 }
 
 function BrandSvg({ path, viewBox = "0 0 24 24" }: { path: string; viewBox?: string }) {
@@ -277,7 +273,6 @@ function downloadVCard(filename: string, vcard: string) {
 function normalizeActions(payments: any): ActionItem[] {
   if (!payments || typeof payments !== "object") return [];
 
-  // Preferred: payments.links is the single ordered list of all actions
   if (Array.isArray(payments.links)) {
     return (payments.links as any[])
       .map((x: any) => ({
@@ -287,23 +282,16 @@ function normalizeActions(payments: any): ActionItem[] {
         value: x?.value ? String(x.value) : "",
         url: x?.url ? String(x.url) : undefined,
       }))
-      .filter((x: ActionItem) => (String(x.value ?? "").trim() || String(x.url ?? "").trim()));
+      .filter((x: ActionItem) => String(x.value ?? "").trim() || String(x.url ?? "").trim());
   }
 
-  // Fallback legacy shape
+  // fallback legacy keys
   const out: ActionItem[] = [];
-  if (typeof payments.phone === "string" && payments.phone.trim())
-    out.push({ type: "phone", value: payments.phone.trim() });
-  if (typeof payments.email === "string" && payments.email.trim())
-    out.push({ type: "email", value: payments.email.trim() });
-
-  if (typeof payments.venmo === "string" && payments.venmo.trim())
-    out.push({ type: "venmo", value: payments.venmo.trim() });
-  if (typeof payments.cashapp === "string" && payments.cashapp.trim())
-    out.push({ type: "cashapp", value: payments.cashapp.trim() });
-  if (typeof payments.paypal === "string" && payments.paypal.trim())
-    out.push({ type: "paypal", value: payments.paypal.trim() });
-
+  if (typeof payments.venmo === "string" && payments.venmo.trim()) out.push({ type: "venmo", value: payments.venmo.trim() });
+  if (typeof payments.cashapp === "string" && payments.cashapp.trim()) out.push({ type: "cashapp", value: payments.cashapp.trim() });
+  if (typeof payments.paypal === "string" && payments.paypal.trim()) out.push({ type: "paypal", value: payments.paypal.trim() });
+  if (typeof payments.phone === "string" && payments.phone.trim()) out.push({ type: "phone", value: payments.phone.trim() });
+  if (typeof payments.email === "string" && payments.email.trim()) out.push({ type: "email", value: payments.email.trim() });
   return out;
 }
 
@@ -450,24 +438,20 @@ export default function CardPage() {
 
   const actions = useMemo(() => normalizeActions(card?.payments), [card?.payments]);
 
-  const showPhone = card?.showPhone ?? true;
-  const showEmail = card?.showEmail ?? true;
-  const showSaveContact = card?.showSaveContact ?? true;
+  // ✅ privacy toggles (works with camelCase OR snake_case)
+  const showPhone = (card?.showPhone ?? (card as any)?.show_phone ?? true) as boolean;
+  const showEmail = (card?.showEmail ?? (card as any)?.show_email ?? true) as boolean;
+  const showSaveContact = (card?.showSaveContact ?? (card as any)?.show_save_contact ?? true) as boolean;
 
   const phoneValue = useMemo(() => {
-    const p = card?.payments;
-    if (p && typeof p === "object" && typeof p.phone === "string") return p.phone.trim();
-    // also allow ordered link phone item
-    const it = actions.find((a) => normalizeType(a.type, a.label) === "phone");
-    return (it?.value ?? "").trim();
-  }, [card?.payments, actions]);
+    const it = actions.find((a) => normalizeType(a.type, a.label, a.value) === "phone");
+    return String(it?.value ?? "").trim();
+  }, [actions]);
 
   const emailValue = useMemo(() => {
-    const p = card?.payments;
-    if (p && typeof p === "object" && typeof p.email === "string") return p.email.trim();
-    const it = actions.find((a) => normalizeType(a.type, a.label) === "email");
-    return (it?.value ?? "").trim();
-  }, [card?.payments, actions]);
+    const it = actions.find((a) => normalizeType(a.type, a.label, a.value) === "email");
+    return String(it?.value ?? "").trim();
+  }, [actions]);
 
   const canSaveContact =
     status === "claimed" &&
@@ -505,6 +489,75 @@ export default function CardPage() {
     } finally {
       setSavingContact(false);
     }
+  }
+
+  const paymentTypes: ActionType[] = ["venmo", "cashapp", "paypal", "phone", "email"];
+  const paymentActions = actions.filter((a) => paymentTypes.includes(normalizeType(a.type, a.label, a.value)));
+  const externalActions = actions.filter((a) => !paymentTypes.includes(normalizeType(a.type, a.label, a.value)));
+
+  function renderAction(raw: ActionItem, idx: number) {
+    const type = normalizeType(raw.type, raw.label, raw.value);
+    const value = String(raw.value ?? "").trim();
+    const label = prettyLabel(type, raw.label);
+    const { href, fallback } = buildHref(type, value, raw.url);
+
+    if (type === "phone" && !showPhone) return null;
+    if (type === "email" && !showEmail) return null;
+
+    if (!value && !raw.url) return null;
+
+    const tapText =
+      type === "email" ? "Copy" : type === "phone" ? "Message" : "Open";
+
+    return (
+      <button
+        key={`${raw.id ?? `${type}-${idx}`}`}
+        onClick={async () => {
+          // email copy-only
+          if (type === "email") {
+            await copyText(value);
+            return;
+          }
+
+          // everything else: open if possible, else copy
+          if (href) {
+            await openWithFallback(href, fallback);
+            return;
+          }
+          if (value) await copyText(value);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (value) copyText(value);
+        }}
+        className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+      >
+        <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+        </span>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+              <Icon type={type} />
+            </div>
+            <span>{label}</span>
+          </div>
+
+          <span className="text-white/60 text-sm">{tapText}</span>
+        </div>
+
+        <div className="mt-1 text-left text-sm text-white/55 break-all">
+          {raw.url ?? value}
+        </div>
+
+        {(type === "phone" || type === "email") && (
+          <div className="mt-1 text-left text-xs text-white/40">
+            Tap to {type === "phone" ? "message" : "copy"} · Hold to copy
+          </div>
+        )}
+      </button>
+    );
   }
 
   return (
@@ -580,81 +633,20 @@ export default function CardPage() {
                 </div>
 
                 <div className="mt-10 space-y-4">
-                  {actions.map((raw, idx) => {
-                    const type = normalizeType(raw.type, raw.label);
-                    const value = String(raw.value ?? "").trim();
-                    const label = prettyLabel(type, raw.label);
-                    const { href, fallback } = buildHref(type, value, raw.url);
+                  {paymentActions.length > 0 && (
+                    <div className="text-xs tracking-[0.35em] text-white/45 mb-2">
+                      PAYMENTS
+                    </div>
+                  )}
+                  {paymentActions.map((a, i) => renderAction(a, i))}
 
-                    // Respect privacy toggles
-                    if (type === "phone" && !showPhone) return null;
-                    if (type === "email" && !showEmail) return null;
-
-                    // If there's no usable value/url, don’t render
-                    if (!value && !raw.url) return null;
-
-                    const tapText =
-                      type === "email"
-                        ? "Copy"
-                        : type === "phone"
-                        ? "Message"
-                        : "Open";
-
-                    return (
-                      <button
-                        key={`${raw.id ?? `${type}-${idx}`}`}
-                        onClick={async () => {
-                          // Email stays copy-on-tap
-                          if (type === "email") {
-                            await copyText(value);
-                            return;
-                          }
-
-                          // Everything else: open if possible; fallback to copy
-                          if (href) {
-                            await openWithFallback(href, fallback);
-                            return;
-                          }
-                          if (value) await copyText(value);
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          // Long-press always copies something useful
-                          if (type === "email" || type === "phone") copyText(value);
-                          else if (href) copyText(fallback ?? href);
-                          else copyText(value);
-                        }}
-                        className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-                      >
-                        <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                          <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
-                        </span>
-
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-                              <Icon type={type} />
-                            </div>
-                            <span>{label}</span>
-                          </div>
-
-                          <span className="text-white/60 text-sm">{tapText}</span>
-                        </div>
-
-                        <div className="mt-1 text-left text-sm text-white/55 break-all">
-                          {type === "phone" || type === "email" ? value : (raw.url ?? value)}
-                        </div>
-
-                        {(type === "phone" || type === "email") && (
-                          <div className="mt-1 text-left text-xs text-white/40">
-                            Tap to {type === "phone" ? "message" : "copy"} · Hold to copy
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-
-                  {/* Viewer-only Save Contact */}
+                  {externalActions.length > 0 && (
+                    <div className="pt-2 text-xs tracking-[0.35em] text-white/45 mb-2">
+                      EXTERNAL LINKS
+                    </div>
+                  )}
+                  {externalActions.map((a, i) => renderAction(a, i))}
+                  
                   {!ownerCheck.isOwner && showSaveContact && (
                     <button
                       onClick={saveContact}
@@ -673,7 +665,6 @@ export default function CardPage() {
                     </button>
                   )}
 
-                  {/* Owner-only Setup/Edit */}
                   {ownerCheck.isOwner && (
                     <button
                       onClick={() => (window.location.href = `/setup/${cardId}`)}
