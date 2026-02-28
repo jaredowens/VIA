@@ -76,17 +76,17 @@ export default function LoginClient({
       localStorage.setItem(RETURN_KEY, returnTo);
     } catch {}
 
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(
-            returnTo
-          )}`
-        : undefined;
+   const redirectTo =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(
+        returnTo
+      )}`
+    : null;
 
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
+await supabase.auth.signInWithOAuth({
+  provider: "google",
+  options: redirectTo ? { redirectTo } : {},
+});
   }
 
   async function sendLink(e: React.FormEvent) {
