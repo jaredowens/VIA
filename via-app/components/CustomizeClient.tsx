@@ -3,6 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+function isLightColor(hex: string) {
+  const h = (hex ?? "").replace("#", "").trim();
+  if (h.length !== 6) return false;
+
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 160;
+}
+
 type Payload = {
   cardId: string;
   isPremium?: boolean;
@@ -45,6 +57,8 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
   const [accentGlow, setAccentGlow] = useState(true);
 
   const [toast, setToast] = useState("");
+
+  const lightAccent = isLightColor(accent);
 
   function showToast(t: string) {
     setToast(t);
@@ -163,13 +177,16 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
           <div className="text-xs tracking-[0.35em] text-white/45">LIVE PREVIEW</div>
           <div className="mt-4">
             <button
-              className={`w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all ${payBtnRadius} ${payBtnGlow}`}
-              style={{ backgroundColor: accent }}
-              onClick={() => showToast("Preview")}
-              type="button"
-            >
-              Pay Through VIA
-            </button>
+  className={`w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow}`}
+  style={{
+    backgroundColor: accent,
+    color: lightAccent ? "#000000" : "#FFFFFF",
+  }}
+  onClick={() => showToast("Preview")}
+  type="button"
+>
+  Pay Through VIA
+</button>
             {!isPremium && (
               <div className="mt-3 text-sm text-white/60">
                 Customize is Premium-only. Upgrade to unlock.
