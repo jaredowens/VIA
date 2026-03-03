@@ -513,8 +513,11 @@ const payBtnGlow = accentGlow
   {isPremium ? (
     <button
       onClick={() => showToast("Pay Through VIA coming soon")}
-     className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow} ${payBtnText}`}
-      style={{ backgroundColor: accent }}
+   className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
+style={{
+  backgroundColor: accent,
+  color: lightAccent ? "#000000" : "#FFFFFF",
+}}
     >
       Pay Through VIA
     </button>
