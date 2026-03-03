@@ -215,6 +215,18 @@ function downloadVCard(filename: string, vcard: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function isLightColor(hex: string) {
+  const h = (hex ?? "").replace("#", "").trim();
+  if (h.length !== 6) return false;
+
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 160;
+}
+
 export default function CardPage() {
   const router = useRouter();
   const { cardId } = useParams<{ cardId: string }>();
@@ -319,6 +331,9 @@ export default function CardPage() {
   const isPremium = Boolean(card?.isPremium);
 const verified = Boolean(card?.verified);
 const accent = (card?.accentColor ?? "#7C3AED").trim();
+
+const lightAccent = isLightColor(accent);
+const payBtnText = lightAccent ? "text-black" : "text-white";
 
 const buttonStyle = (card?.buttonStyle ?? "pill") as "pill" | "soft";
 const accentGlow = card?.accentGlow ?? true;
@@ -498,7 +513,7 @@ const payBtnGlow = accentGlow
   {isPremium ? (
     <button
       onClick={() => showToast("Pay Through VIA coming soon")}
-     className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
+     className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow} ${payBtnText}`}
       style={{ backgroundColor: accent }}
     >
       Pay Through VIA
