@@ -217,6 +217,8 @@ export default function CardPage() {
   const { cardId } = useParams<{ cardId: string }>();
   if (!cardId) return null;
 
+  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
+
   const [status, setStatus] = useState<ViewStatus>("checking");
   const [message, setMessage] = useState("");
   const [card, setCard] = useState<PublicCardPayload | null>(null);
@@ -407,6 +409,15 @@ const accent = (card?.accentColor ?? "#7C3AED").trim();
               <div className="select-none text-[38px] font-light tracking-[0.55em] text-transparent bg-clip-text bg-gradient-to-b from-white to-white/55">
                 VIA
               </div>
+
+              {ownerCheck.isOwner && (
+                <button
+                     onClick={() => setOwnerMenuOpen(true)}
+                     className="absolute left-0 top-1/2 -translate-y-1/2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
+                   >
+                    ☰
+                   </button>
+                  )}
 
               {ownerCheck.isOwner && (
                 <button
@@ -722,6 +733,68 @@ const accent = (card?.accentColor ?? "#7C3AED").trim();
           <p className="mt-6 text-center text-[11px] tracking-widest text-white/30">VIA · Tap to pay</p>
         </div>
       </div>
+
+      {ownerMenuOpen && ownerCheck.isOwner && (
+  <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true">
+    {/* backdrop */}
+    <div
+      className="absolute inset-0 bg-black/60"
+      onClick={() => setOwnerMenuOpen(false)}
+    />
+
+    {/* drawer */}
+    <div className="absolute left-0 top-0 h-full w-[280px] border-r border-white/10 bg-[#121214]/95 p-4 backdrop-blur-xl">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="text-xs tracking-[0.35em] text-white/45">OWNER MENU</div>
+        <button
+          onClick={() => setOwnerMenuOpen(false)}
+          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 hover:bg-white/10"
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <a
+          href={`/c/${cardId}/settings/profile`}
+          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+        >
+          Settings → Profile
+        </a>
+
+        <a
+          href={`/c/${cardId}/customize`}
+          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+        >
+          Customize
+        </a>
+
+        <a
+          href={`/c/${cardId}/analytics`}
+          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+        >
+          Analytics
+        </a>
+
+        <div className="my-3 h-px bg-white/10" />
+
+        <a
+          href={`/setup/${cardId}/edit/personal`}
+          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+        >
+          Setup → Personal
+        </a>
+
+        <a
+          href={`/setup/${cardId}/edit/links`}
+          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+        >
+          Setup → Links
+        </a>
+      </div>
+    </div>
+  </div>
+)}
 
       {toast && (
   <div className="fixed left-1/2 top-6 z-[100] -translate-x-1/2 rounded-full border border-white/15 bg-black/70 px-4 py-2 text-sm text-white/90 backdrop-blur">
