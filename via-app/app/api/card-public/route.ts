@@ -198,7 +198,11 @@ export async function GET(req: Request) {
         accent_color,
         premium_verified,
         button_style,
-        accent_glow
+        accent_glow,
+        bg_style,
+bg_color,
+bg_color_2,
+pay_btn_accent
       `
       )
       .eq("id", cardId)
@@ -227,6 +231,11 @@ export async function GET(req: Request) {
       typeof (data as any).accent_color === "string" ? (data as any).accent_color : null;
     const verified = Boolean((data as any).premium_verified);
 
+    const bgStyle = (data as any).bg_style ?? "default";
+const bgColor = typeof (data as any).bg_color === "string" ? (data as any).bg_color : null;
+const bgColor2 = typeof (data as any).bg_color_2 === "string" ? (data as any).bg_color_2 : null;
+const payBtnAccent = (data as any).pay_btn_accent ?? "none";
+
     return NextResponse.json({
       cardId: data.id,
       displayName: (data as any).display_name ?? null,
@@ -243,6 +252,11 @@ export async function GET(req: Request) {
       isPremium,
       accentColor,
       verified,
+
+      bgStyle,
+bgColor,
+bgColor2,
+payBtnAccent,
 
       buttonStyle: (data as any).button_style ?? "pill",
       accentGlow: (data as any).accent_glow ?? true,

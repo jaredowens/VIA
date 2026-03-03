@@ -34,6 +34,11 @@ type PublicCardPayload = {
   buttonStyle?: "pill" | "soft";
 accentGlow?: boolean;
 
+  bgStyle?: "default" | "solid" | "gradient";
+  bgColor?: string | null;
+  bgColor2?: string | null;
+  payBtnAccent?: "none" | "outline" | "shine";
+
   payments: {
     phone: string | null;
     email: string | null;
@@ -418,8 +423,22 @@ const payBtnGlow = accentGlow
     }
   }
 
+ const bgStyle = card?.bgStyle ?? "default";
+const bgColor = (card?.bgColor ?? "#0A0A0B").trim();
+const bgColor2 = (card?.bgColor2 ?? "#111114").trim();
+
+const backgroundStyle =
+  bgStyle === "solid"
+    ? { background: bgColor }
+    : bgStyle === "gradient"
+      ? { background: `linear-gradient(135deg, ${bgColor}, ${bgColor2})` }
+      : { background: "#0A0A0B" };
+
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0A0A0B] text-white">
+    <div
+  className="relative min-h-screen overflow-hidden text-white"
+  style={backgroundStyle}
+>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-[90px]" />
         <div className="absolute top-1/3 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/6 blur-[110px]" />
