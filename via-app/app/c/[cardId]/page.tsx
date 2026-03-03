@@ -469,55 +469,57 @@ const accent = (card?.accentColor ?? "#7C3AED").trim();
                   ) : null}
                 </div>
 
-                {/* Premium modules */}
-{isPremium ? (
-  <button
-    onClick={() => showToast("Pay Through VIA coming soon")}
-    className="group relative w-full overflow-hidden rounded-2xl border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20"
-    style={{ backgroundColor: accent }}
-  >
-    Pay Through VIA
-  </button>
-) : (
-  <div className="space-y-3">
-    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
-      <span className="flex items-center gap-2">
-        <Lock className="h-4 w-4 text-white/60" />
-        Pay Through VIA
-      </span>
-      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
-        Locked
-      </span>
-    </div>
-
-    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
-      <span className="flex items-center gap-2">
-        <Lock className="h-4 w-4 text-white/60" />
-        Customize
-      </span>
-      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
-        Locked
-      </span>
-    </div>
-
-    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
-      <span className="flex items-center gap-2">
-        <Lock className="h-4 w-4 text-white/60" />
-        Analytics
-      </span>
-      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
-        Locked
-      </span>
-    </div>
-
+      {/* Premium modules */}
+<div className="mt-3">
+  {isPremium ? (
     <button
-      onClick={() => showToast("Upgrade coming soon")}
-      className="w-full rounded-2xl border border-white/15 bg-transparent px-4 py-4 text-sm font-semibold text-white/85 hover:bg-white/5"
+      onClick={() => showToast("Pay Through VIA coming soon")}
+      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20"
+      style={{ backgroundColor: accent }}
     >
-      Upgrade to Premium
+      Pay Through VIA
     </button>
-  </div>
-)}
+  ) : (
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+        <span className="flex items-center gap-2">
+          <Lock className="h-4 w-4 text-white/60" />
+          Pay Through VIA
+        </span>
+        <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+          Locked
+        </span>
+      </div>
+
+      <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+        <span className="flex items-center gap-2">
+          <Lock className="h-4 w-4 text-white/60" />
+          Customize
+        </span>
+        <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+          Locked
+        </span>
+      </div>
+
+      <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+        <span className="flex items-center gap-2">
+          <Lock className="h-4 w-4 text-white/60" />
+          Analytics
+        </span>
+        <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+          Locked
+        </span>
+      </div>
+
+      <button
+        onClick={() => showToast("Upgrade coming soon")}
+        className="w-full rounded-2xl border border-white/15 bg-transparent px-4 py-4 text-sm font-semibold text-white/85 hover:bg-white/5"
+      >
+        Upgrade to Premium
+      </button>
+    </div>
+  )}
+</div>
 
                 <div className="mt-10 space-y-4">
                   <div className="text-xs tracking-[0.35em] text-white/45 mb-2">PAYMENTS</div>
@@ -720,6 +722,12 @@ const accent = (card?.accentColor ?? "#7C3AED").trim();
           <p className="mt-6 text-center text-[11px] tracking-widest text-white/30">VIA · Tap to pay</p>
         </div>
       </div>
+
+      {toast && (
+  <div className="fixed left-1/2 top-6 z-[100] -translate-x-1/2 rounded-full border border-white/15 bg-black/70 px-4 py-2 text-sm text-white/90 backdrop-blur">
+    {toast}
+  </div>
+)}
 
       <style jsx>{`
         .grain {
