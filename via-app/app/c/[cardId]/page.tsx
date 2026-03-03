@@ -221,6 +221,7 @@ export default function CardPage() {
   const [savingContact, setSavingContact] = useState(false);
 
   const [toast, setToast] = useState("");
+  const [showEditSheet, setShowEditSheet] = useState(false);
   function showToast(t: string) {
     setToast(t);
     setTimeout(() => setToast(""), 1400);
@@ -582,14 +583,63 @@ export default function CardPage() {
                     </button>
                   )}
 
-                  {ownerCheck.isOwner && (
-                    <button
-                      onClick={() => (window.location.href = `/setup/${cardId}`)}
-                      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-                    >
-                      Setup / Edit
-                    </button>
-                  )}
+                 {ownerCheck.isOwner && (
+  <>
+    <button
+      onClick={() => setShowEditSheet(true)}
+      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+    >
+      Edit
+    </button>
+
+    {showEditSheet && (
+      <div
+        className="fixed inset-0 z-50"
+        role="dialog"
+        aria-modal="true"
+        onClick={() => setShowEditSheet(false)}
+      >
+        {/* backdrop */}
+        <div className="absolute inset-0 bg-black/60" />
+
+        {/* sheet */}
+        <div
+          className="absolute inset-x-0 bottom-0 rounded-t-[28px] border border-white/10 bg-[#121214]/95 p-4 shadow-[0_-30px_120px_rgba(0,0,0,0.75)] backdrop-blur-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/15" />
+
+          <div className="mb-3 text-center text-xs tracking-[0.35em] text-white/45">
+            EDIT CARD
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => (window.location.href = `/setup/${cardId}/edit/personal`)}
+              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm font-medium text-white/90 hover:bg-white/10"
+            >
+              Personal Info
+            </button>
+
+            <button
+              onClick={() => (window.location.href = `/setup/${cardId}/edit/links`)}
+              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm font-medium text-white/90 hover:bg-white/10"
+            >
+              Payments & Links
+            </button>
+
+            <button
+              onClick={() => setShowEditSheet(false)}
+              className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-4 text-sm tracking-wide text-white/60 hover:bg-white/5"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+)}
                 </div>
 
                 {!!message && <p className="mt-6 text-center text-sm text-white/55">{message}</p>}

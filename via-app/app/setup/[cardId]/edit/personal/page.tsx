@@ -221,7 +221,12 @@ export default function PersonalEditPage() {
       const currentUid = userData.user?.id;
 
       if (!currentUid || data.owner_user_id !== currentUid) {
-        window.location.href = returnToCard;
+       const params = new URLSearchParams(window.location.search);
+        const next = params.get("next");
+
+        window.location.href = next === "links"
+  ? `/setup/${cardId}/edit/links?next=card`
+  : returnToCard;
         return;
       }
 
@@ -335,7 +340,9 @@ export default function PersonalEditPage() {
         return;
       }
 
-      window.location.href = returnToCard;
+      const next = new URLSearchParams(window.location.search).get("next");
+window.location.href =
+  next === "links" ? `/setup/${cardId}/edit/links?next=card` : returnToCard;
     } finally {
       setSaving(false);
     }

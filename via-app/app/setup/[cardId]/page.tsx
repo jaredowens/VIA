@@ -9,7 +9,7 @@ export default function SetupRedirect() {
 
   useEffect(() => {
     if (!cardId) return;
-    router.replace(`/setup/${cardId}/edit/personal`);
+    router.replace(`/setup/${cardId}/edit/personal?next=links`);
   }, [cardId, router]);
 
   return null;
