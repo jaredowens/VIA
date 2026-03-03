@@ -759,7 +759,7 @@ const accent = (card?.accentColor ?? "#7C3AED").trim();
           href={`/c/${cardId}/settings/profile`}
           className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
         >
-          Settings → Profile
+          Profile Settings
         </a>
 
         <a
@@ -782,14 +782,14 @@ const accent = (card?.accentColor ?? "#7C3AED").trim();
           href={`/setup/${cardId}/edit/personal`}
           className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
         >
-          Setup → Personal
+          Personal Info
         </a>
 
         <a
           href={`/setup/${cardId}/edit/links`}
           className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
         >
-          Setup → Links
+          Payment & Links
         </a>
       </div>
     </div>

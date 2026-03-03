@@ -9,6 +9,13 @@ export default function CustomizePage({
 }) {
   const { cardId } = params;
 
+  <a
+  href={`/c/${params.cardId}`}
+  className="mb-4 inline-block rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
+>
+   Return to Card
+</a>
+
   return (
     <OwnerGate cardId={cardId}>
       <div className="min-h-screen bg-[#0A0A0B] text-white p-8">
