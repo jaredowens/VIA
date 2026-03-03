@@ -1,14 +1,14 @@
 import Link from "next/link";
 import OwnerGate from "@/components/OwnerGate";
 
-export default function SettingsLayout({
+export default async function SettingsLayout({
   children,
   params,
 }: {
   children: React.ReactNode;
-  params: { cardId: string };
+  params: Promise<{ cardId: string }>;
 }) {
-  const { cardId } = params;
+  const { cardId } = await params;
 
   return (
     <OwnerGate cardId={cardId}>
