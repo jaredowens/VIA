@@ -175,7 +175,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("cards")
-      .select(
+          .select(
         `
           id,
           owner_user_id,
@@ -186,7 +186,10 @@ export async function GET(req: Request) {
           payments_json,
           show_phone,
           show_email,
-          show_save_contact
+          show_save_contact,
+     is_premium,
+       accent_color,
+     premium_verified
         `
       )
       .eq("id", cardId)
@@ -210,19 +213,28 @@ export async function GET(req: Request) {
 
     const normalized = normalizePayments((data as any).payments_json);
 
+    const isPremium = Boolean((data as any).is_premium);
+const accentColor =
+  typeof (data as any).accent_color === "string" ? (data as any).accent_color : null;
+const verified = Boolean((data as any).premium_verified);
+
     return NextResponse.json({
-      cardId: data.id,
-      displayName: (data as any).display_name ?? null,
-      bio: (data as any).bio ?? null,
-      photoUrl: (data as any).photo_url ?? null,
-      payLabel: (data as any).pay_label ?? null,
+  cardId: data.id,
+  displayName: (data as any).display_name ?? null,
+  bio: (data as any).bio ?? null,
+  photoUrl: (data as any).photo_url ?? null,
+  payLabel: (data as any).pay_label ?? null,
 
-      showPhone: (data as any).show_phone ?? true,
-      showEmail: (data as any).show_email ?? true,
-      showSaveContact: (data as any).show_save_contact ?? true,
+  showPhone: (data as any).show_phone ?? true,
+  showEmail: (data as any).show_email ?? true,
+  showSaveContact: (data as any).show_save_contact ?? true,
 
-      payments: normalized,
-    });
+  payments: normalized,
+
+  isPremium,
+  accentColor,
+  verified,
+});
   } catch (err) {
     console.error("Card public route crash:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

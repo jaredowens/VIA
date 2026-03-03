@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Mail, Phone, Globe } from "lucide-react";
+import { Mail, Phone, Globe, BadgeCheck, Lock } from "lucide-react";
 import {
   siVenmo,
   siPaypal,
@@ -26,6 +26,10 @@ type PublicCardPayload = {
   showPhone: boolean;
   showEmail: boolean;
   showSaveContact: boolean;
+
+  isPremium?: boolean;
+  accentColor?: string | null;
+  verified?: boolean;
 
   payments: {
     phone: string | null;
@@ -307,6 +311,10 @@ export default function CardPage() {
   const showEmail = card?.showEmail ?? true;
   const showSaveContact = card?.showSaveContact ?? true;
 
+  const isPremium = Boolean(card?.isPremium);
+const verified = Boolean(card?.verified);
+const accent = (card?.accentColor ?? "#7C3AED").trim();
+
   const phoneValue = (card?.payments?.phone ?? "").trim();
   const emailValue = (card?.payments?.email ?? "").trim();
 
@@ -430,9 +438,21 @@ export default function CardPage() {
                     </div>
                   ) : null}
 
-                  <h1 className="text-[22px] font-semibold tracking-wide text-white/95">
-                    {card?.displayName?.trim() || "VIA Card"}
-                  </h1>
+                 <div className="flex items-center justify-center gap-2">
+    <h1 className="text-[22px] font-semibold tracking-wide text-white/95">
+    {card?.displayName?.trim() || "VIA Card"}
+    </h1>
+
+    {isPremium && verified && (
+      <span
+      className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white/75"
+      title="Verified"
+    >
+         <BadgeCheck className="h-4 w-4" />
+      Verified
+    </span>
+  )}
+</div>
 
                   {card?.bio?.trim() ? (
                     <p className="mt-3 text-sm text-white/60 leading-relaxed">{card.bio}</p>
@@ -448,6 +468,56 @@ export default function CardPage() {
                     </div>
                   ) : null}
                 </div>
+
+                {/* Premium modules */}
+{isPremium ? (
+  <button
+    onClick={() => showToast("Pay Through VIA coming soon")}
+    className="group relative w-full overflow-hidden rounded-2xl border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20"
+    style={{ backgroundColor: accent }}
+  >
+    Pay Through VIA
+  </button>
+) : (
+  <div className="space-y-3">
+    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+      <span className="flex items-center gap-2">
+        <Lock className="h-4 w-4 text-white/60" />
+        Pay Through VIA
+      </span>
+      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+        Locked
+      </span>
+    </div>
+
+    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+      <span className="flex items-center gap-2">
+        <Lock className="h-4 w-4 text-white/60" />
+        Customize
+      </span>
+      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+        Locked
+      </span>
+    </div>
+
+    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+      <span className="flex items-center gap-2">
+        <Lock className="h-4 w-4 text-white/60" />
+        Analytics
+      </span>
+      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+        Locked
+      </span>
+    </div>
+
+    <button
+      onClick={() => showToast("Upgrade coming soon")}
+      className="w-full rounded-2xl border border-white/15 bg-transparent px-4 py-4 text-sm font-semibold text-white/85 hover:bg-white/5"
+    >
+      Upgrade to Premium
+    </button>
+  </div>
+)}
 
                 <div className="mt-10 space-y-4">
                   <div className="text-xs tracking-[0.35em] text-white/45 mb-2">PAYMENTS</div>
