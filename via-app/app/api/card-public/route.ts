@@ -53,7 +53,7 @@ function normalizeType(raw: any, label?: any, value?: any): LinkType {
   const v = String(value ?? "").toLowerCase().trim();
   const s = `${t} ${l} ${v}`;
 
-  // ✅ allow phone/email as ordered markers
+  // allow phone/email as ordered markers
   if (t === "phone" || s.includes("phone")) return "phone";
   if (t === "email" || s.includes("email")) return "email";
 
@@ -74,8 +74,8 @@ function normalizeType(raw: any, label?: any, value?: any): LinkType {
   if (v.includes(".") && !v.includes(" ")) return "website";
 
   // fallback
-  if (t === "other") return "other";
   if (t === "custom") return "custom";
+  if (t === "other") return "other";
   return "other";
 }
 
@@ -89,13 +89,13 @@ function normalizePayments(paymentsJson: any) {
   if (!paymentsJson || typeof paymentsJson !== "object") return safeEmpty;
 
   const phone =
-    typeof paymentsJson.phone === "string" ? paymentsJson.phone.trim() : null;
+    typeof (paymentsJson as any).phone === "string" ? (paymentsJson as any).phone.trim() : null;
   const email =
-    typeof paymentsJson.email === "string" ? paymentsJson.email.trim() : null;
+    typeof (paymentsJson as any).email === "string" ? (paymentsJson as any).email.trim() : null;
 
-  // ✅ New shape: { phone, email, links: [...] }
-  if (Array.isArray(paymentsJson.links)) {
-    const links = paymentsJson.links
+  // New shape: { phone, email, links: [...] }
+  if (Array.isArray((paymentsJson as any).links)) {
+    const links = (paymentsJson as any).links
       .filter((x: any) => x && typeof x === "object")
       .map((x: any) => {
         const id = typeof x.id === "string" ? x.id : crypto.randomUUID();
@@ -112,12 +112,14 @@ function normalizePayments(paymentsJson: any) {
 
         return { id, type, label, value, url } as LinkItem;
       })
-      .filter((x: LinkItem) => !!x.value || !!x.url || x.type === "phone" || x.type === "email");
+      .filter(
+        (x: LinkItem) => !!x.value || !!x.url || x.type === "phone" || x.type === "email"
+      );
 
     return { phone: phone || null, email: email || null, links };
   }
 
-  // ✅ Array shape: [{ type, label, value }]
+  // Array shape: [{ type, label, value }]
   if (Array.isArray(paymentsJson)) {
     const links = paymentsJson
       .filter((x: any) => x && typeof x === "object")
@@ -134,12 +136,14 @@ function normalizePayments(paymentsJson: any) {
 
         return { id, type, label, value, url } as LinkItem;
       })
-      .filter((x: LinkItem) => !!x.value || !!x.url || x.type === "phone" || x.type === "email");
+      .filter(
+        (x: LinkItem) => !!x.value || !!x.url || x.type === "phone" || x.type === "email"
+      );
 
     return { phone: null, email: null, links };
   }
 
-  // ✅ Legacy object: { venmo, cashapp, paypal, phone, email }
+  // Legacy object: { venmo, cashapp, paypal, phone, email }
   const links: LinkItem[] = [];
   for (const [key, value] of Object.entries(paymentsJson)) {
     if (key === "phone" || key === "email") continue;
@@ -162,11 +166,14 @@ function normalizePayments(paymentsJson: any) {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const cardId = searchParams.get("cardId");
+    const cardIdRaw = searchParams.get("cardId");
 
-    if (!cardId) {
+    if (!cardIdRaw) {
       return NextResponse.json({ error: "Missing cardId" }, { status: 400 });
     }
+
+    // ✅ Normalize so /c/ab12 and /c/AB12 both work
+    const cardId = cardIdRaw.trim().toUpperCase();
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -175,23 +182,25 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("cards")
-        .select(`
-  id,
-  owner_user_id,
-  display_name,
-  bio,
-  photo_url,
-  pay_label,
-  payments_json,
-  show_phone,
-  show_email,
-  show_save_contact,
-  is_premium,
-  accent_color,
-  premium_verified,
-  button_style,
-  accent_glow
-`)
+      .select(
+        `
+        id,
+        owner_user_id,
+        display_name,
+        bio,
+        photo_url,
+        pay_label,
+        payments_json,
+        show_phone,
+        show_email,
+        show_save_contact,
+        is_premium,
+        accent_color,
+        premium_verified,
+        button_style,
+        accent_glow
+      `
+      )
       .eq("id", cardId)
       .maybeSingle();
 
@@ -214,30 +223,30 @@ export async function GET(req: Request) {
     const normalized = normalizePayments((data as any).payments_json);
 
     const isPremium = Boolean((data as any).is_premium);
-const accentColor =
-  typeof (data as any).accent_color === "string" ? (data as any).accent_color : null;
-const verified = Boolean((data as any).premium_verified);
+    const accentColor =
+      typeof (data as any).accent_color === "string" ? (data as any).accent_color : null;
+    const verified = Boolean((data as any).premium_verified);
 
     return NextResponse.json({
-  cardId: data.id,
-  displayName: (data as any).display_name ?? null,
-  bio: (data as any).bio ?? null,
-  photoUrl: (data as any).photo_url ?? null,
-  payLabel: (data as any).pay_label ?? null,
+      cardId: data.id,
+      displayName: (data as any).display_name ?? null,
+      bio: (data as any).bio ?? null,
+      photoUrl: (data as any).photo_url ?? null,
+      payLabel: (data as any).pay_label ?? null,
 
-  showPhone: (data as any).show_phone ?? true,
-  showEmail: (data as any).show_email ?? true,
-  showSaveContact: (data as any).show_save_contact ?? true,
+      showPhone: (data as any).show_phone ?? true,
+      showEmail: (data as any).show_email ?? true,
+      showSaveContact: (data as any).show_save_contact ?? true,
 
-  payments: normalized,
+      payments: normalized,
 
-  isPremium,
-  accentColor,
-  verified,
+      isPremium,
+      accentColor,
+      verified,
 
-  buttonStyle: (data as any).button_style ?? "pill",
-  accentGlow: (data as any).accent_glow ?? true,
-});
+      buttonStyle: (data as any).button_style ?? "pill",
+      accentGlow: (data as any).accent_glow ?? true,
+    });
   } catch (err) {
     console.error("Card public route crash:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
