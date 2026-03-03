@@ -31,6 +31,9 @@ type PublicCardPayload = {
   accentColor?: string | null;
   verified?: boolean;
 
+  buttonStyle?: "pill" | "soft";
+accentGlow?: boolean;
+
   payments: {
     phone: string | null;
     email: string | null;
@@ -317,6 +320,16 @@ export default function CardPage() {
 const verified = Boolean(card?.verified);
 const accent = (card?.accentColor ?? "#7C3AED").trim();
 
+const buttonStyle = (card?.buttonStyle ?? "pill") as "pill" | "soft";
+const accentGlow = card?.accentGlow ?? true;
+
+const payBtnRadius =
+  buttonStyle === "soft" ? "rounded-2xl" : "rounded-full";
+
+const payBtnGlow = accentGlow
+  ? "shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_12px_36px_rgba(0,0,0,0.55)]"
+  : "";
+
   const phoneValue = (card?.payments?.phone ?? "").trim();
   const emailValue = (card?.payments?.email ?? "").trim();
 
@@ -485,7 +498,7 @@ const accent = (card?.accentColor ?? "#7C3AED").trim();
   {isPremium ? (
     <button
       onClick={() => showToast("Pay Through VIA coming soon")}
-      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20"
+     className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide text-white/95 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
       style={{ backgroundColor: accent }}
     >
       Pay Through VIA

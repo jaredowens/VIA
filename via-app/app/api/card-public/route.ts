@@ -175,23 +175,23 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("cards")
-          .select(
-        `
-          id,
-          owner_user_id,
-          display_name,
-          bio,
-          photo_url,
-          pay_label,
-          payments_json,
-          show_phone,
-          show_email,
-          show_save_contact,
-     is_premium,
-       accent_color,
-     premium_verified
-        `
-      )
+        .select(`
+  id,
+  owner_user_id,
+  display_name,
+  bio,
+  photo_url,
+  pay_label,
+  payments_json,
+  show_phone,
+  show_email,
+  show_save_contact,
+  is_premium,
+  accent_color,
+  premium_verified,
+  button_style,
+  accent_glow
+`)
       .eq("id", cardId)
       .maybeSingle();
 
@@ -234,6 +234,9 @@ const verified = Boolean((data as any).premium_verified);
   isPremium,
   accentColor,
   verified,
+
+  buttonStyle: (data as any).button_style ?? "pill",
+  accentGlow: (data as any).accent_glow ?? true,
 });
   } catch (err) {
     console.error("Card public route crash:", err);
