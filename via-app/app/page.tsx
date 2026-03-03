@@ -63,15 +63,15 @@ export default function Home() {
               Enter Card ID
             </Link>
 
-            <Link
-              href="/login"
-              className="group relative block w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-center font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-            >
-              <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
-              </span>
-              Sign in
-            </Link>
+          <Link
+  href={`/login?returnTo=${encodeURIComponent("/enter")}`}
+  className="group relative block w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-center font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+>
+  <span className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+    <span className="absolute -left-1/2 top-0 h-full w-1/2 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-sheen" />
+  </span>
+  Sign in
+</Link>
 
             <p className="text-center text-[11px] tracking-widest text-white/30">
               If you tapped a card and ended up here, the card link is set wrong.
