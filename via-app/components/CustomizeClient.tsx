@@ -22,6 +22,12 @@ type Payload = {
   verified?: boolean;
   buttonStyle?: "pill" | "soft";
   accentGlow?: boolean;
+
+  // NEW
+  bgStyle?: "default" | "solid" | "gradient";
+  bgColor?: string | null;
+  bgColor2?: string | null;
+  payBtnAccent?: "none" | "outline" | "shine";
 };
 
 const PRESETS = [
@@ -35,6 +41,7 @@ const PRESETS = [
   { name: "Stealth", value: "#111827" },
 ];
 
+// returns "" if invalid
 function normalizeHex(input: string) {
   const t = (input ?? "").trim();
   if (!t) return "";
@@ -49,12 +56,21 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
   const [isPremium, setIsPremium] = useState(false);
 
+  // Accent
   const [accent, setAccent] = useState("#7C3AED");
   const [hexDraft, setHexDraft] = useState("#7C3AED");
-  const [showHex, setShowHex] = useState(false);
 
+  // Button
   const [buttonStyle, setButtonStyle] = useState<"pill" | "soft">("pill");
   const [accentGlow, setAccentGlow] = useState(true);
+
+  // NEW: Background
+  const [bgStyle, setBgStyle] = useState<"default" | "solid" | "gradient">("default");
+  const [bgColor, setBgColor] = useState("#0A0A0B");
+  const [bgColor2, setBgColor2] = useState("#111114");
+
+  // NEW: Pay button accent
+  const [payBtnAccent, setPayBtnAccent] = useState<"none" | "outline" | "shine">("none");
 
   const [toast, setToast] = useState("");
 
@@ -88,6 +104,17 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         setAccentGlow(data.accentGlow ?? true);
 
         setIsPremium(Boolean(data.isPremium));
+
+        // NEW
+        const bs = (data.bgStyle ?? "default") as "default" | "solid" | "gradient";
+        setBgStyle(bs);
+
+        const c1 = normalizeHex(data.bgColor ?? "") || "#0A0A0B";
+        const c2 = normalizeHex(data.bgColor2 ?? "") || "#111114";
+        setBgColor(c1);
+        setBgColor2(c2);
+
+        setPayBtnAccent((data.payBtnAccent ?? "none") as "none" | "outline" | "shine");
       } catch {
         if (!cancelled) showToast("Could not load");
       } finally {
@@ -106,31 +133,52 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     ? "shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_12px_36px_rgba(0,0,0,0.55)]"
     : "";
 
+  const payBtnAccentClass =
+    payBtnAccent === "outline"
+      ? "ring-1 ring-white/25"
+      : payBtnAccent === "shine"
+        ? "relative before:absolute before:inset-0 before:rounded-[inherit] before:bg-gradient-to-r before:from-white/20 before:via-white/5 before:to-white/20 before:opacity-60 before:blur-[6px]"
+        : "";
+
+  const previewBgStyle =
+    bgStyle === "solid"
+      ? { background: bgColor }
+      : bgStyle === "gradient"
+        ? { background: `linear-gradient(135deg, ${bgColor}, ${bgColor2})` }
+        : { background: "#0A0A0B" };
+
   const dirty = useMemo(() => {
-    // if they opened hex and typed a valid hex, compare to accent
     const normalized = normalizeHex(hexDraft) || accent;
+    // (You can expand this later if you want a “you have unsaved changes” banner)
     return normalized !== accent || false;
   }, [hexDraft, accent]);
 
   async function save() {
     if (!isPremium) return showToast("Premium required");
-    const normalized = normalizeHex(hexDraft) || accent;
+
+    const normalizedAccent = normalizeHex(hexDraft) || accent;
 
     setSaving(true);
     try {
       const { error } = await supabase
         .from("cards")
         .update({
-          accent_color: normalized,
+          accent_color: normalizedAccent,
           button_style: buttonStyle,
           accent_glow: accentGlow,
+
+          // NEW
+          bg_style: bgStyle,
+          bg_color: bgStyle === "default" ? null : bgColor,
+          bg_color_2: bgStyle === "gradient" ? bgColor2 : null,
+          pay_btn_accent: payBtnAccent,
         })
         .eq("id", cardId);
 
       if (error) throw error;
 
-      setAccent(normalized);
-      setHexDraft(normalized);
+      setAccent(normalizedAccent);
+      setHexDraft(normalizedAccent);
       showToast("Saved");
     } catch (e: any) {
       showToast(e?.message ? String(e.message) : "Save failed");
@@ -144,6 +192,13 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     setHexDraft("#7C3AED");
     setButtonStyle("pill");
     setAccentGlow(true);
+
+    // NEW defaults
+    setBgStyle("default");
+    setBgColor("#0A0A0B");
+    setBgColor2("#111114");
+    setPayBtnAccent("none");
+
     showToast("Reset");
   }
 
@@ -154,13 +209,13 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
           href={`/c/${cardId}`}
           className="mb-4 inline-block rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
         >
-           Return to Card
+          Return to Card
         </a>
 
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold">Customize</h1>
-            <p className="mt-1 text-sm text-white/60">Accent, button style, and glow.</p>
+            <p className="mt-1 text-sm text-white/60">Accent, background, and button styling.</p>
           </div>
 
           <button
@@ -175,18 +230,21 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         {/* Live preview */}
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
           <div className="text-xs tracking-[0.35em] text-white/45">LIVE PREVIEW</div>
-          <div className="mt-4">
+
+          {/* Preview "card" surface */}
+          <div className="mt-4 rounded-2xl border border-white/10 p-5" style={previewBgStyle}>
             <button
-  className={`w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow}`}
-  style={{
-    backgroundColor: accent,
-    color: lightAccent ? "#000000" : "#FFFFFF",
-  }}
-  onClick={() => showToast("Preview")}
-  type="button"
->
-  Pay Through VIA
-</button>
+              className={`w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
+              style={{
+                backgroundColor: accent,
+                color: lightAccent ? "#000000" : "#FFFFFF",
+              }}
+              onClick={() => showToast("Preview")}
+              type="button"
+            >
+              Pay Through VIA
+            </button>
+
             {!isPremium && (
               <div className="mt-3 text-sm text-white/60">
                 Customize is Premium-only. Upgrade to unlock.
@@ -195,9 +253,11 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
           </div>
         </div>
 
-        {/* Accent presets */}
+        {/* Accent */}
         <div className="mt-6">
-          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">ACCENT THEME</div>
+          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">ACCENT COLOR</div>
+
+          {/* Presets */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {PRESETS.map((p) => {
               const selected = accent.toUpperCase() === p.value.toUpperCase();
@@ -208,10 +268,11 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                   onClick={() => {
                     setAccent(p.value);
                     setHexDraft(p.value);
-                    setShowHex(false);
                   }}
                   className={`rounded-2xl border px-3 py-3 text-left transition-all ${
-                    selected ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                    selected
+                      ? "border-white/30 bg-white/10"
+                      : "border-white/10 bg-white/5 hover:bg-white/10"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -227,47 +288,131 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
             })}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowHex((v) => !v)}
-            className="mt-4 text-xs text-white/70 hover:text-white"
-          >
-            {showHex ? "Hide custom hex" : "Use custom hex"}
-          </button>
+          {/* Color wheel + hex (synced) */}
+          <div className="mt-4">
+            <div className="text-sm font-semibold text-white/80">Custom</div>
+            <div className="mt-2 flex items-center gap-3">
+              <input
+                type="color"
+                value={accent}
+                onChange={(e) => {
+                  const v = normalizeHex(e.target.value) || accent;
+                  setAccent(v);
+                  setHexDraft(v);
+                }}
+                className="h-10 w-14 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0"
+                aria-label="Pick accent color"
+              />
 
-          {showHex && (
-            <div className="mt-3 flex items-center gap-3">
               <input
                 value={hexDraft}
                 onChange={(e) => setHexDraft(e.target.value)}
+                onBlur={() => {
+                  const n = normalizeHex(hexDraft);
+                  if (n) setAccent(n);
+                }}
                 placeholder="#7C3AED"
-                className="w-full rounded-xl border border-white/12 bg-black/30 px-3 py-2 text-sm text-white/85 outline-none focus:border-white/25"
+                className="h-10 w-full rounded-xl border border-white/12 bg-black/30 px-3 text-sm text-white/85 outline-none focus:border-white/25"
               />
+
               <button
                 type="button"
                 onClick={() => {
                   const n = normalizeHex(hexDraft);
                   if (!n) return showToast("Invalid hex");
                   setAccent(n);
+                  setHexDraft(n);
                   showToast("Applied");
                 }}
-                className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-sm text-white/85 hover:bg-white/10"
+                className="h-10 rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-white/85 hover:bg-white/10"
               >
                 Apply
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Background */}
+        <div className="mt-6">
+          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">BACKGROUND</div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {(["default", "solid", "gradient"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setBgStyle(v)}
+                className={`rounded-2xl border px-3 py-3 text-sm transition-all ${
+                  bgStyle === v
+                    ? "border-white/30 bg-white/10"
+                    : "border-white/10 bg-white/5 hover:bg-white/10"
+                }`}
+              >
+                {v === "default" ? "Default" : v === "solid" ? "Solid" : "Gradient"}
+              </button>
+            ))}
+          </div>
+
+          {(bgStyle === "solid" || bgStyle === "gradient") && (
+            <div className="mt-3 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={bgColor}
+                  onChange={(e) => {
+                    const v = normalizeHex(e.target.value) || bgColor;
+                    setBgColor(v);
+                  }}
+                  className="h-10 w-14 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0"
+                  aria-label="Pick background color"
+                />
+                <input
+                  value={bgColor}
+                  onChange={(e) => {
+                    const v = normalizeHex(e.target.value) || "";
+                    setBgColor(v || bgColor);
+                  }}
+                  className="h-10 w-full rounded-xl border border-white/12 bg-black/30 px-3 text-sm text-white/85 outline-none focus:border-white/25"
+                />
+              </div>
+
+              {bgStyle === "gradient" && (
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={bgColor2}
+                    onChange={(e) => {
+                      const v = normalizeHex(e.target.value) || bgColor2;
+                      setBgColor2(v);
+                    }}
+                    className="h-10 w-14 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0"
+                    aria-label="Pick background color 2"
+                  />
+                  <input
+                    value={bgColor2}
+                    onChange={(e) => {
+                      const v = normalizeHex(e.target.value) || "";
+                      setBgColor2(v || bgColor2);
+                    }}
+                    className="h-10 w-full rounded-xl border border-white/12 bg-black/30 px-3 text-sm text-white/85 outline-none focus:border-white/25"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Button style */}
         <div className="mt-6">
-          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">BUTTON STYLE</div>
+          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">BUTTON SHAPE</div>
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setButtonStyle("pill")}
               className={`flex-1 rounded-2xl border px-4 py-3 text-sm ${
-                buttonStyle === "pill" ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                buttonStyle === "pill"
+                  ? "border-white/30 bg-white/10"
+                  : "border-white/10 bg-white/5 hover:bg-white/10"
               }`}
             >
               Pill
@@ -276,11 +421,34 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
               type="button"
               onClick={() => setButtonStyle("soft")}
               className={`flex-1 rounded-2xl border px-4 py-3 text-sm ${
-                buttonStyle === "soft" ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                buttonStyle === "soft"
+                  ? "border-white/30 bg-white/10"
+                  : "border-white/10 bg-white/5 hover:bg-white/10"
               }`}
             >
               Soft Square
             </button>
+          </div>
+        </div>
+
+        {/* Pay button accent */}
+        <div className="mt-6">
+          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">PAY BUTTON ACCENT</div>
+          <div className="grid grid-cols-3 gap-2">
+            {(["none", "outline", "shine"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setPayBtnAccent(v)}
+                className={`rounded-2xl border px-3 py-3 text-sm transition-all ${
+                  payBtnAccent === v
+                    ? "border-white/30 bg-white/10"
+                    : "border-white/10 bg-white/5 hover:bg-white/10"
+                }`}
+              >
+                {v === "none" ? "None" : v === "outline" ? "Outline" : "Shine"}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -310,9 +478,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
             Reset to default
           </button>
 
-          <div className="text-xs text-white/40">
-            {isPremium ? "Premium enabled" : "Premium required"}
-          </div>
+          <div className="text-xs text-white/40">{isPremium ? "Premium enabled" : "Premium required"}</div>
         </div>
       </div>
 
