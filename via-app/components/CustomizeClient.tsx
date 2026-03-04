@@ -270,8 +270,16 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
       <div className="pointer-events-none absolute inset-0 bg-black/35" />
 
       <div className="relative mx-auto w-full max-w-[720px]">
-        {/* Header */}
+        {/* Header row (match analytics pattern) */}
         <div className="mb-2">
+          <button
+            type="button"
+            onClick={() => router.push(`/c/${cardId}`)}
+            className="mb-4 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
+          >
+            ← Return to card
+          </button>
+
           <h1 className="text-xl font-semibold">Customize</h1>
           <p className="mt-1 text-sm text-white/70">Accent, background, and button styling.</p>
         </div>
