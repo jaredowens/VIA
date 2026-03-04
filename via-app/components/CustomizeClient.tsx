@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 function isLightColor(hex: string) {
@@ -46,7 +47,9 @@ function cleanHex(v: string, fallback: string) {
   return ok ? t.toUpperCase() : fallback;
 }
 
-/** Full-width "color bar" control. */
+/**
+ * Flat control (NOT a nested card). Matches your /c page "rail" vibe.
+ */
 function ColorBar({
   label,
   value,
@@ -58,13 +61,13 @@ function ColorBar({
 }) {
   const safe = cleanHex(value, "#000000");
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-xs text-white/60">{label}</div>
-        <div className="text-[11px] tracking-wider text-white/45">{safe}</div>
+    <div className="rounded-2xl border border-white/12 bg-transparent px-4 py-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-medium text-white/85">{label}</div>
+        <div className="text-xs tracking-wider text-white/45">{safe}</div>
       </div>
 
-      <div className="relative h-12 w-full overflow-hidden rounded-xl border border-white/10">
+      <div className="relative h-12 w-full overflow-hidden rounded-xl border border-white/12">
         <div className="absolute inset-0" style={{ background: safe }} />
         <input
           type="color"
@@ -79,31 +82,29 @@ function ColorBar({
   );
 }
 
-function Panel({
+function Section({
   title,
-  desc,
+  subtitle,
   children,
-  id,
 }: {
-  id: string;
   title: string;
-  desc?: string;
+  subtitle?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-24">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 md:p-5">
-        <div className="flex flex-col gap-1">
-          <div className="text-sm font-semibold text-white/90">{title}</div>
-          {desc ? <div className="text-xs text-white/55">{desc}</div> : null}
-        </div>
-        <div className="mt-4 space-y-3">{children}</div>
+    <div className="pt-6">
+      <div className="flex flex-col gap-1">
+        <div className="text-xs tracking-[0.35em] text-white/45">{title}</div>
+        {subtitle ? <div className="text-sm text-white/55">{subtitle}</div> : null}
       </div>
-    </section>
+      <div className="mt-4 space-y-3">{children}</div>
+    </div>
   );
 }
 
 export default function CustomizeClient({ cardId }: { cardId: string }) {
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -133,33 +134,26 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     setTimeout(() => setToast(""), 1400);
   }
 
+  // load current settings
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
         setLoading(true);
-        const res = await fetch(
-          `/api/card-public?cardId=${encodeURIComponent(cardId)}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/card-public?cardId=${encodeURIComponent(cardId)}`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error("load failed");
         const data = (await res.json()) as Payload;
         if (cancelled) return;
 
-        const a = cleanHex((data.accentColor ?? "#7C3AED").trim(), "#7C3AED");
-        setAccent(a);
-
+        setAccent(cleanHex((data.accentColor ?? "#7C3AED").trim(), "#7C3AED"));
         setButtonStyle((data.buttonStyle ?? "pill") as "pill" | "soft");
         setAccentGlow(data.accentGlow ?? true);
-        setPayBtnAccent(
-          (data.payBtnAccent ?? "none") as "none" | "outline" | "shine"
-        );
+        setPayBtnAccent((data.payBtnAccent ?? "none") as "none" | "outline" | "shine");
 
-        const bs = (data.bgStyle ?? "default") as
-          | "default"
-          | "solid"
-          | "gradient";
+        const bs = (data.bgStyle ?? "default") as "default" | "solid" | "gradient";
         setBgStyle(bs);
         setBgColor(cleanHex(data.bgColor ?? "#0A0A0B", "#0A0A0B"));
         setBgColor2(cleanHex(data.bgColor2 ?? "#111114", "#111114"));
@@ -197,7 +191,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
       ? { background: `linear-gradient(135deg, ${bgColor}, ${bgColor2})` }
       : { background: "#0A0A0B" };
 
-  async function save() {
+  async function save({ goBack }: { goBack: boolean }) {
     if (!isPremium) return showToast("Premium required");
 
     setSaving(true);
@@ -211,15 +205,19 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
           bg_style: bgStyle,
           bg_color: bgStyle === "default" ? null : cleanHex(bgColor, "#0A0A0B"),
-          bg_color_2:
-            bgStyle === "gradient" ? cleanHex(bgColor2, "#111114") : null,
+          bg_color_2: bgStyle === "gradient" ? cleanHex(bgColor2, "#111114") : null,
 
           pay_btn_accent: payBtnAccent,
         })
         .eq("id", cardId);
 
       if (error) throw error;
+
       showToast("Saved");
+      if (goBack) {
+        // Give toast a beat so user sees it
+        setTimeout(() => router.push(`/c/${cardId}`), 350);
+      }
     } catch (e: any) {
       showToast(e?.message ? String(e.message) : "Save failed");
     } finally {
@@ -241,116 +239,87 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white px-4 py-6 pb-28 md:px-8 md:py-10">
-      <div className="mx-auto w-full max-w-6xl rounded-2xl border border-white/10 bg-[#121214]/70 p-4 md:p-8 backdrop-blur-xl">
-        <a
-          href={`/c/${cardId}`}
-          className="mb-4 inline-block w-full md:w-auto text-center rounded-xl border border-white/12 bg-white/5 px-3 py-3 md:py-2 text-xs text-white/75 hover:bg-white/10"
-        >
-          Return to Card
-        </a>
+    <div className="relative min-h-screen overflow-hidden text-white" style={{ background: "#0A0A0B" }}>
+      {/* Same background treatment as /c */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-[90px]" />
+        <div className="absolute top-1/3 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/6 blur-[110px]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_140px_rgba(0,0,0,0.85)]" />
+        <div className="grain absolute inset-0 opacity-[0.10]" />
+      </div>
 
-        {/* Top header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">Customize</h1>
-            <p className="mt-1 text-sm text-white/60">
-              Premium settings for accent, background, and button styling.
-            </p>
-          </div>
+      <div className="relative px-6 py-10 pb-28">
+        <div className="mx-auto w-full max-w-[720px]">
+          {/* ONE shell, like /c. No nested black dashboard box. */}
+          <div className="relative rounded-[28px] border border-white/10 bg-[#121214]/70 p-6 md:p-10 shadow-[0_30px_120px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 rounded-[28px] border border-white/5" />
+            <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
 
-          {/* Desktop actions */}
-          <div className="hidden md:flex items-center gap-3">
-            <button
-              type="button"
-              onClick={reset}
-              className="rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
-            >
-              Reset
-            </button>
-            <button
-              onClick={save}
-              disabled={loading || saving || !isPremium}
-              className="rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/85 hover:bg-white/10 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
-        </div>
+            {/* Top row */}
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <a
+                href={`/c/${cardId}`}
+                className="inline-block rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
+              >
+                Return to Card
+              </a>
 
-        {/* Stripe/Apple layout: sidebar + content */}
-        <div className="mt-6 grid gap-6 md:grid-cols-[260px_1fr]">
-          {/* Sidebar (desktop) */}
-          <aside className="hidden md:block">
-            <div className="sticky top-6 space-y-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="text-xs tracking-[0.35em] text-white/45">
-                  SECTIONS
-                </div>
-                <div className="mt-3 flex flex-col gap-1 text-sm">
-                  {[
-                    ["preview", "Live preview"],
-                    ["accent", "Accent color"],
-                    ["background", "Background"],
-                    ["shape", "Button shape"],
-                    ["payaccent", "Pay button accent"],
-                    ["glow", "Accent glow"],
-                  ].map(([id, label]) => (
-                    <a
-                      key={id}
-                      href={`#${id}`}
-                      className="rounded-xl px-3 py-2 text-white/75 hover:bg-white/10 hover:text-white"
-                    >
-                      {label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="text-xs tracking-[0.35em] text-white/45">
-                  STATUS
-                </div>
-                <div className="mt-3 text-sm text-white/70">
-                  {isPremium ? "Premium enabled" : "Premium required"}
-                </div>
+              <div className="hidden md:flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={() => save({ goBack: true })}
+                  disabled={loading || saving || !isPremium}
+                  className="rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/85 hover:bg-white/10 disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : "Save & return"}
+                </button>
               </div>
             </div>
-          </aside>
 
-          {/* Main content */}
-          <main className="space-y-4">
-            <Panel id="preview" title="Live preview" desc="See your changes instantly.">
-              <div
-                className="rounded-2xl border border-white/10 p-5"
-                style={backgroundPreviewStyle}
-              >
-                <button
-                  className={`relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
-                  style={{
-                    backgroundColor: accent,
-                    color: lightAccent ? "#000000" : "#FFFFFF",
-                  }}
-                  onClick={() => showToast("Preview")}
-                  type="button"
-                >
-                  Pay Through VIA
-                </button>
+            {/* Header */}
+            <div className="mb-6">
+              <h1 className="text-xl font-semibold">Customize</h1>
+              <p className="mt-1 text-sm text-white/60">
+                Accent, background, and button styling.
+              </p>
+            </div>
 
-                {!isPremium && (
-                  <div className="mt-3 text-sm text-white/60">
-                    Customize is Premium-only. Upgrade to unlock.
-                  </div>
-                )}
+            {/* Live preview (flat—no extra nested cards) */}
+            <Section title="LIVE PREVIEW">
+              <div className="rounded-2xl border border-white/12 bg-transparent p-4">
+                <div className="rounded-2xl border border-white/12 p-5" style={backgroundPreviewStyle}>
+                  <button
+                    className={`relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
+                    style={{
+                      backgroundColor: accent,
+                      color: lightAccent ? "#000000" : "#FFFFFF",
+                    }}
+                    onClick={() => showToast("Preview")}
+                    type="button"
+                  >
+                    Pay Through VIA
+                  </button>
+
+                  {!isPremium && (
+                    <div className="mt-3 text-sm text-white/60">
+                      Customize is Premium-only. Upgrade to unlock.
+                    </div>
+                  )}
+                </div>
               </div>
-            </Panel>
+            </Section>
 
-            <Panel
-              id="accent"
-              title="Accent color"
-              desc="Used for payment button + premium highlights."
-            >
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="mt-6 h-px bg-white/10" />
+
+            {/* Accent */}
+            <Section title="ACCENT COLOR">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {PRESETS.map((p) => {
                   const selected = accent.toUpperCase() === p.value.toUpperCase();
                   return (
@@ -358,10 +327,10 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                       key={p.value}
                       type="button"
                       onClick={() => setAccent(p.value.toUpperCase())}
-                      className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-xs transition-all ${
+                      className={`flex items-center gap-2 rounded-2xl border px-3 py-4 text-xs transition-all ${
                         selected
                           ? "border-white/30 bg-white/10"
-                          : "border-white/10 bg-white/5 hover:bg-white/10"
+                          : "border-white/12 bg-white/5 hover:bg-white/10"
                       }`}
                       title={p.name}
                     >
@@ -376,19 +345,22 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
               </div>
 
               <ColorBar label="Custom accent" value={accent} onChange={setAccent} />
-            </Panel>
+            </Section>
 
-            <Panel id="background" title="Background" desc="Default, solid color, or gradient.">
+            <div className="mt-6 h-px bg-white/10" />
+
+            {/* Background */}
+            <Section title="BACKGROUND" subtitle="Default, solid color, or gradient.">
               <div className="grid grid-cols-3 gap-3">
                 {(["default", "solid", "gradient"] as const).map((k) => (
                   <button
                     key={k}
                     type="button"
                     onClick={() => setBgStyle(k)}
-                    className={`rounded-2xl border px-4 py-4 text-sm capitalize ${
+                    className={`rounded-2xl border px-3 py-4 text-sm capitalize ${
                       bgStyle === k
                         ? "border-white/30 bg-white/10"
-                        : "border-white/10 bg-white/5 hover:bg-white/10"
+                        : "border-white/12 bg-white/5 hover:bg-white/10"
                     }`}
                   >
                     {k}
@@ -406,9 +378,12 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                   <ColorBar label="Gradient end" value={bgColor2} onChange={setBgColor2} />
                 </>
               )}
-            </Panel>
+            </Section>
 
-            <Panel id="shape" title="Button shape" desc="Choose the payment button radius.">
+            <div className="mt-6 h-px bg-white/10" />
+
+            {/* Button shape */}
+            <Section title="BUTTON SHAPE" subtitle="Choose the payment button radius.">
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -416,7 +391,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                   className={`rounded-2xl border px-4 py-4 text-sm ${
                     buttonStyle === "pill"
                       ? "border-white/30 bg-white/10"
-                      : "border-white/10 bg-white/5 hover:bg-white/10"
+                      : "border-white/12 bg-white/5 hover:bg-white/10"
                   }`}
                 >
                   Pill
@@ -427,15 +402,18 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                   className={`rounded-2xl border px-4 py-4 text-sm ${
                     buttonStyle === "soft"
                       ? "border-white/30 bg-white/10"
-                      : "border-white/10 bg-white/5 hover:bg-white/10"
+                      : "border-white/12 bg-white/5 hover:bg-white/10"
                   }`}
                 >
                   Soft Square
                 </button>
               </div>
-            </Panel>
+            </Section>
 
-            <Panel id="payaccent" title="Pay button accent" desc="Extra premium flair on the pay button.">
+            <div className="mt-6 h-px bg-white/10" />
+
+            {/* Pay button accent */}
+            <Section title="PAY BUTTON ACCENT" subtitle="Extra premium flair on the pay button.">
               <div className="grid grid-cols-3 gap-3">
                 {(["none", "outline", "shine"] as const).map((k) => (
                   <button
@@ -445,19 +423,23 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                     className={`rounded-2xl border px-3 py-4 text-sm capitalize ${
                       payBtnAccent === k
                         ? "border-white/30 bg-white/10"
-                        : "border-white/10 bg-white/5 hover:bg-white/10"
+                        : "border-white/12 bg-white/5 hover:bg-white/10"
                     }`}
                   >
                     {k}
                   </button>
                 ))}
               </div>
-            </Panel>
+            </Section>
 
-            <Panel id="glow" title="Accent glow" desc="Adds a subtle premium glow effect.">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="text-sm text-white/70">
-                  Toggle glow on the pay button.
+            <div className="mt-6 h-px bg-white/10" />
+
+            {/* Glow */}
+            <Section title="ACCENT GLOW" subtitle="Adds a subtle premium glow effect.">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between rounded-2xl border border-white/12 bg-transparent px-4 py-4">
+                <div>
+                  <div className="text-sm font-medium text-white/85">Accent glow</div>
+                  <div className="text-xs text-white/50">Toggle glow on the pay button.</div>
                 </div>
 
                 <button
@@ -466,25 +448,33 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                   className={`w-full md:w-auto rounded-2xl border px-4 py-3 text-sm ${
                     accentGlow
                       ? "border-white/25 bg-white/10 text-white/85"
-                      : "border-white/10 bg-transparent text-white/60"
+                      : "border-white/12 bg-transparent text-white/60"
                   }`}
                 >
                   {accentGlow ? "On" : "Off"}
                 </button>
               </div>
-            </Panel>
+            </Section>
 
-            {/* Mobile footer info */}
-            <div className="md:hidden text-center text-xs text-white/40 pt-2">
-              {isPremium ? "Premium enabled" : "Premium required"}
+            <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <button
+                type="button"
+                onClick={reset}
+                className="w-full md:w-auto rounded-2xl border border-white/12 bg-transparent px-4 py-4 text-sm font-semibold text-white/75 hover:bg-white/5"
+              >
+                Reset to default
+              </button>
+              <div className="text-xs text-white/40 text-center md:text-right">
+                {isPremium ? "Premium enabled" : "Premium required"}
+              </div>
             </div>
-          </main>
+          </div>
         </div>
       </div>
 
-      {/* Sticky Save Bar (mobile) */}
+      {/* Sticky bottom bar (mobile): Save & return */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0A0A0B]/85 backdrop-blur md:hidden">
-        <div className="mx-auto w-full max-w-6xl px-4 py-3">
+        <div className="mx-auto w-full max-w-[720px] px-6 py-3">
           <div className="flex gap-3">
             <button
               type="button"
@@ -494,7 +484,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
               Reset
             </button>
             <button
-              onClick={save}
+              onClick={() => save({ goBack: true })}
               disabled={loading || saving || !isPremium}
               className="flex-[1.2] rounded-2xl py-4 font-semibold disabled:opacity-50"
               style={{
@@ -502,7 +492,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                 color: lightAccent ? "#000000" : "#FFFFFF",
               }}
             >
-              {saving ? "Saving…" : isPremium ? "Save changes" : "Premium required"}
+              {saving ? "Saving…" : isPremium ? "Save & return" : "Premium required"}
             </button>
           </div>
         </div>
@@ -513,6 +503,13 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
           {toast}
         </div>
       )}
+
+      <style jsx>{`
+        .grain {
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+          mix-blend-mode: overlay;
+        }
+      `}</style>
     </div>
   );
 }
