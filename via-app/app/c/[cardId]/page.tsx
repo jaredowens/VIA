@@ -32,7 +32,7 @@ type PublicCardPayload = {
   verified?: boolean;
 
   buttonStyle?: "pill" | "soft";
-accentGlow?: boolean;
+  accentGlow?: boolean;
 
   bgStyle?: "default" | "solid" | "gradient";
   bgColor?: string | null;
@@ -235,8 +235,8 @@ function isLightColor(hex: string) {
 export default function CardPage() {
   const router = useRouter();
   const { cardId } = useParams<{ cardId: string }>();
-const cid = (cardId ?? "").trim().toUpperCase();
-if (!cid) return null;
+  const cid = (cardId ?? "").trim().toUpperCase();
+  if (!cid) return null;
 
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
 
@@ -260,15 +260,15 @@ if (!cid) return null;
   }
 
   function track(
-  eventType: "link_click" | "pay_click" | "save_contact",
-  meta: any = {}
-) {
-  fetch("/api/card-event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cardId, eventType, meta }),
-  }).catch(() => {});
-}
+    eventType: "link_click" | "pay_click" | "save_contact",
+    meta: any = {}
+  ) {
+    fetch("/api/card-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cardId, eventType, meta }),
+    }).catch(() => {});
+  }
 
   async function refreshOwner() {
     try {
@@ -295,22 +295,22 @@ if (!cid) return null;
   }
 
   useEffect(() => {
-  if (status !== "claimed") return;
+    if (status !== "claimed") return;
 
-  const key = `via:viewed:${cardId}`;
-  if (sessionStorage.getItem(key)) return;
+    const key = `via:viewed:${cardId}`;
+    if (sessionStorage.getItem(key)) return;
 
-  sessionStorage.setItem(key, "1");
+    sessionStorage.setItem(key, "1");
 
-  fetch("/api/card-event", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      cardId,
-      eventType: "view",
-    }),
-  }).catch(() => {});
-}, [status, cardId]);
+    fetch("/api/card-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cardId,
+        eventType: "view",
+      }),
+    }).catch(() => {});
+  }, [status, cardId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -364,21 +364,21 @@ if (!cid) return null;
   const showSaveContact = card?.showSaveContact ?? true;
 
   const isPremium = Boolean(card?.isPremium);
-const verified = Boolean(card?.verified);
-const accent = (card?.accentColor ?? "#7C3AED").trim();
+  const verified = Boolean(card?.verified);
+  const accent = (card?.accentColor ?? "#7C3AED").trim();
 
-const lightAccent = isLightColor(accent);
-const payBtnText = lightAccent ? "text-black" : "text-white";
+  const lightAccent = isLightColor(accent);
+  const payBtnText = lightAccent ? "text-black" : "text-white";
 
-const buttonStyle = (card?.buttonStyle ?? "pill") as "pill" | "soft";
-const accentGlow = card?.accentGlow ?? true;
+  const buttonStyle = (card?.buttonStyle ?? "pill") as "pill" | "soft";
+  const accentGlow = card?.accentGlow ?? true;
 
-const payBtnRadius =
-  buttonStyle === "soft" ? "rounded-2xl" : "rounded-full";
+  const payBtnRadius =
+    buttonStyle === "soft" ? "rounded-2xl" : "rounded-full";
 
-const payBtnGlow = accentGlow
-  ? "shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_12px_36px_rgba(0,0,0,0.55)]"
-  : "";
+  const payBtnGlow = accentGlow
+    ? "shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_12px_36px_rgba(0,0,0,0.55)]"
+    : "";
 
   const phoneValue = (card?.payments?.phone ?? "").trim();
   const emailValue = (card?.payments?.email ?? "").trim();
@@ -453,22 +453,22 @@ const payBtnGlow = accentGlow
     }
   }
 
- const bgStyle = card?.bgStyle ?? "default";
-const bgColor = (card?.bgColor ?? "#0A0A0B").trim();
-const bgColor2 = (card?.bgColor2 ?? "#111114").trim();
+  const bgStyle = card?.bgStyle ?? "default";
+  const bgColor = (card?.bgColor ?? "#0A0A0B").trim();
+  const bgColor2 = (card?.bgColor2 ?? "#111114").trim();
 
-const backgroundStyle =
-  bgStyle === "solid"
-    ? { background: bgColor }
-    : bgStyle === "gradient"
-      ? { background: `linear-gradient(135deg, ${bgColor}, ${bgColor2})` }
-      : { background: "#0A0A0B" };
+  const backgroundStyle =
+    bgStyle === "solid"
+      ? { background: bgColor }
+      : bgStyle === "gradient"
+        ? { background: `linear-gradient(135deg, ${bgColor}, ${bgColor2})` }
+        : { background: "#0A0A0B" };
 
   return (
     <div
-  className="relative min-h-screen overflow-hidden text-white"
-  style={backgroundStyle}
->
+      className="relative min-h-screen overflow-hidden text-white"
+      style={backgroundStyle}
+    >
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-[90px]" />
         <div className="absolute top-1/3 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/6 blur-[110px]" />
@@ -489,12 +489,12 @@ const backgroundStyle =
 
               {ownerCheck.isOwner && (
                 <button
-                     onClick={() => setOwnerMenuOpen(true)}
-                     className="absolute left-0 top-1/2 -translate-y-1/2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
-                   >
-                    ☰
-                   </button>
-                  )}
+                  onClick={() => setOwnerMenuOpen(true)}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
+                >
+                  ☰
+                </button>
+              )}
 
               {ownerCheck.isOwner && (
                 <button
@@ -526,21 +526,21 @@ const backgroundStyle =
                     </div>
                   ) : null}
 
-                 <div className="flex items-center justify-center gap-2">
-    <h1 className="text-[22px] font-semibold tracking-wide text-white/95">
-    {card?.displayName?.trim() || "VIA Card"}
-    </h1>
+                  <div className="flex items-center justify-center gap-2">
+                    <h1 className="text-[22px] font-semibold tracking-wide text-white/95">
+                      {card?.displayName?.trim() || "VIA Card"}
+                    </h1>
 
-    {isPremium && verified && (
-      <span
-      className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white/75"
-      title="Verified"
-    >
-         <BadgeCheck className="h-4 w-4" />
-      Verified
-    </span>
-  )}
-</div>
+                    {isPremium && verified && (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white/75"
+                        title="Verified"
+                      >
+                        <BadgeCheck className="h-4 w-4" />
+                        Verified
+                      </span>
+                    )}
+                  </div>
 
                   {card?.bio?.trim() ? (
                     <p className="mt-3 text-sm text-white/60 leading-relaxed">{card.bio}</p>
@@ -557,63 +557,36 @@ const backgroundStyle =
                   ) : null}
                 </div>
 
-      {/* Premium modules */}
-<div className="mt-3">
-  {isPremium ? (
-    <button
-      onClick={() => {
-  track("pay_click");
-  showToast("Pay Through VIA coming soon");
-}}
-   className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
-style={{
-  backgroundColor: accent,
-  color: lightAccent ? "#000000" : "#FFFFFF",
-}}
-    >
-      Pay Through VIA
-    </button>
-  ) : (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <Lock className="h-4 w-4 text-white/60" />
-          Pay Through VIA
-        </span>
-        <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
-          Locked
-        </span>
-      </div>
-
-      <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <Lock className="h-4 w-4 text-white/60" />
-          Customize
-        </span>
-        <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
-          Locked
-        </span>
-      </div>
-
-      <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <Lock className="h-4 w-4 text-white/60" />
-          Analytics
-        </span>
-        <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
-          Locked
-        </span>
-      </div>
-
-      <button
-        onClick={() => showToast("Upgrade coming soon")}
-        className="w-full rounded-2xl border border-white/15 bg-transparent px-4 py-4 text-sm font-semibold text-white/85 hover:bg-white/5"
-      >
-        Upgrade to Premium
-      </button>
-    </div>
-  )}
-</div>
+                {/* Premium modules (home screen) */}
+                <div className="mt-3">
+                  {isPremium ? (
+                    <button
+                      onClick={() => {
+                        track("pay_click");
+                        showToast("Pay Through VIA coming soon");
+                      }}
+                      className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
+                      style={{
+                        backgroundColor: accent,
+                        color: lightAccent ? "#000000" : "#FFFFFF",
+                      }}
+                      type="button"
+                    >
+                      Pay Through VIA
+                    </button>
+                  ) : ownerCheck.isOwner ? (
+                    // not premium: show locked tile ONLY to owner
+                    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-white/60" />
+                        Pay Through VIA
+                      </span>
+                      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+                        Locked
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
 
                 <div className="mt-10 space-y-4">
                   <div className="text-xs tracking-[0.35em] text-white/45 mb-2">PAYMENTS</div>
@@ -680,12 +653,12 @@ style={{
                     return (
                       <button
                         key={`${it.id}-${idx}`}
-                       onClick={() => {
-  track("link_click", { type: it.type });
+                        onClick={() => {
+                          track("link_click", { type: it.type });
 
-  if (href) window.location.href = href;
-  else copyText(it.value);
-}}
+                          if (href) window.location.href = href;
+                          else copyText(it.value);
+                        }}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           copyText(it.value);
@@ -743,10 +716,10 @@ style={{
 
                   {!ownerCheck.isOwner && showSaveContact && (
                     <button
-                     onClick={() => {
-  track("save_contact");
-  saveContact();
-}}
+                      onClick={() => {
+                        track("save_contact");
+                        saveContact();
+                      }}
                       disabled={!canSaveContact || savingContact}
                       className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7 disabled:opacity-60 disabled:hover:translate-y-0"
                     >
@@ -754,63 +727,74 @@ style={{
                     </button>
                   )}
 
-                 {ownerCheck.isOwner && (
-  <>
-    <button
-      onClick={() => setShowEditSheet(true)}
-      className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
-    >
-      Edit
-    </button>
+                  {ownerCheck.isOwner && (
+                    <>
+                      <button
+                        onClick={() => setShowEditSheet(true)}
+                        className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7"
+                      >
+                        Edit
+                      </button>
 
-    {showEditSheet && (
-      <div
-        className="fixed inset-0 z-50"
-        role="dialog"
-        aria-modal="true"
-        onClick={() => setShowEditSheet(false)}
-      >
-        {/* backdrop */}
-        <div className="absolute inset-0 bg-black/60" />
+                      {showEditSheet && (
+                        <div
+                          className="fixed inset-0 z-50"
+                          role="dialog"
+                          aria-modal="true"
+                          onClick={() => setShowEditSheet(false)}
+                        >
+                          {/* backdrop */}
+                          <div className="absolute inset-0 bg-black/60" />
 
-        {/* sheet */}
-        <div
-          className="absolute inset-x-0 bottom-0 rounded-t-[28px] border border-white/10 bg-[#121214]/95 p-4 shadow-[0_-30px_120px_rgba(0,0,0,0.75)] backdrop-blur-xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/15" />
+                          {/* sheet */}
+                          <div
+                            className="absolute inset-x-0 bottom-0 rounded-t-[28px] border border-white/10 bg-[#121214]/95 p-4 shadow-[0_-30px_120px_rgba(0,0,0,0.75)] backdrop-blur-xl"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-white/15" />
 
-          <div className="mb-3 text-center text-xs tracking-[0.35em] text-white/45">
-            EDIT CARD
-          </div>
+                            <div className="mb-3 text-center text-xs tracking-[0.35em] text-white/45">
+                              EDIT CARD
+                            </div>
 
-          <div className="space-y-3">
-            <button
-              onClick={() => (window.location.href = `/setup/${cardId}/edit/personal`)}
-              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm font-medium text-white/90 hover:bg-white/10"
-            >
-              Personal Info
-            </button>
+                            <div className="space-y-3">
+                              <button
+                                onClick={() => (window.location.href = `/setup/${cardId}/edit/personal`)}
+                                className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm font-medium text-white/90 hover:bg-white/10"
+                              >
+                                Personal Info
+                              </button>
 
-            <button
-              onClick={() => (window.location.href = `/setup/${cardId}/edit/links`)}
-              className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm font-medium text-white/90 hover:bg-white/10"
-            >
-              Payments & Links
-            </button>
+                              <button
+                                onClick={() => (window.location.href = `/setup/${cardId}/edit/links`)}
+                                className="w-full rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm font-medium text-white/90 hover:bg-white/10"
+                              >
+                                Payments & Links
+                              </button>
 
-            <button
-              onClick={() => setShowEditSheet(false)}
-              className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-4 text-sm tracking-wide text-white/60 hover:bg-white/5"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-  </>
-)}
+                              <button
+                                onClick={() => setShowEditSheet(false)}
+                                className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-4 text-sm tracking-wide text-white/60 hover:bg-white/5"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Upgrade to Premium (BOTTOM, OWNER ONLY) */}
+                  {ownerCheck.isOwner && !isPremium && (
+                    <button
+                      onClick={() => showToast("Upgrade coming soon")}
+                      className="mt-6 w-full rounded-2xl border border-white/15 bg-transparent px-4 py-4 text-sm font-semibold text-white/85 hover:bg-white/5"
+                      type="button"
+                    >
+                      Upgrade to Premium
+                    </button>
+                  )}
                 </div>
 
                 {!!message && <p className="mt-6 text-center text-sm text-white/55">{message}</p>}
@@ -823,72 +807,72 @@ style={{
       </div>
 
       {ownerMenuOpen && ownerCheck.isOwner && (
-  <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true">
-    {/* backdrop */}
-    <div
-      className="absolute inset-0 bg-black/60"
-      onClick={() => setOwnerMenuOpen(false)}
-    />
+        <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true">
+          {/* backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setOwnerMenuOpen(false)}
+          />
 
-    {/* drawer */}
-    <div className="absolute left-0 top-0 h-full w-[280px] border-r border-white/10 bg-[#121214]/95 p-4 backdrop-blur-xl">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="text-xs tracking-[0.35em] text-white/45">OWNER MENU</div>
-        <button
-          onClick={() => setOwnerMenuOpen(false)}
-          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 hover:bg-white/10"
-        >
-          Close
-        </button>
-      </div>
+          {/* drawer */}
+          <div className="absolute left-0 top-0 h-full w-[280px] border-r border-white/10 bg-[#121214]/95 p-4 backdrop-blur-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="text-xs tracking-[0.35em] text-white/45">OWNER MENU</div>
+              <button
+                onClick={() => setOwnerMenuOpen(false)}
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
 
-      <div className="space-y-2">
-        <a
-          href={`/c/${cid}/settings/profile`}
-          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-        >
-          Profile Settings
-        </a>
+            <div className="space-y-2">
+              <a
+                href={`/c/${cid}/settings/profile`}
+                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+              >
+                Profile Settings
+              </a>
 
-        <a
-          href={`/c/${cid}/customize`}
-          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-        >
-          Customize
-        </a>
+              <a
+                href={`/c/${cid}/customize`}
+                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+              >
+                Customize
+              </a>
 
-        <a
-          href={`/c/${cid}/analytics`}
-          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-        >
-          Analytics
-        </a>
+              <a
+                href={`/c/${cid}/analytics`}
+                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+              >
+                Analytics
+              </a>
 
-        <div className="my-3 h-px bg-white/10" />
+              <div className="my-3 h-px bg-white/10" />
 
-        <a
-          href={`/setup/${cid}/edit/personal`}
-          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-        >
-          Personal Info
-        </a>
+              <a
+                href={`/setup/${cid}/edit/personal`}
+                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+              >
+                Personal Info
+              </a>
 
-        <a
-          href={`/setup/${cid}/edit/links`}
-          className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-        >
-          Payment & Links
-        </a>
-      </div>
-    </div>
-  </div>
-)}
+              <a
+                href={`/setup/${cid}/edit/links`}
+                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+              >
+                Payment & Links
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
-  <div className="fixed left-1/2 top-6 z-[100] -translate-x-1/2 rounded-full border border-white/15 bg-black/70 px-4 py-2 text-sm text-white/90 backdrop-blur">
-    {toast}
-  </div>
-)}
+        <div className="fixed left-1/2 top-6 z-[100] -translate-x-1/2 rounded-full border border-white/15 bg-black/70 px-4 py-2 text-sm text-white/90 backdrop-blur">
+          {toast}
+        </div>
+      )}
 
       <style jsx>{`
         .grain {
