@@ -97,10 +97,14 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
   const [accent, setAccent] = useState("#7C3AED");
   const [buttonStyle, setButtonStyle] = useState<"pill" | "soft">("pill");
   const [accentGlow, setAccentGlow] = useState(true);
-  const [payBtnAccent, setPayBtnAccent] = useState<"none" | "outline" | "shine">("none");
+  const [payBtnAccent, setPayBtnAccent] = useState<"none" | "outline" | "shine">(
+    "none"
+  );
 
   // Background
-  const [bgStyle, setBgStyle] = useState<"default" | "solid" | "gradient">("default");
+  const [bgStyle, setBgStyle] = useState<"default" | "solid" | "gradient">(
+    "default"
+  );
   const [bgColor, setBgColor] = useState("#0A0A0B");
   const [bgColor2, setBgColor2] = useState("#111114");
 
@@ -120,9 +124,12 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     async function load() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/card-public?cardId=${encodeURIComponent(cardId)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/card-public?cardId=${encodeURIComponent(cardId)}`,
+          {
+            cache: "no-store",
+          }
+        );
         if (!res.ok) throw new Error("load failed");
         const data = (await res.json()) as Payload;
         if (cancelled) return;
@@ -132,9 +139,14 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
         setButtonStyle((data.buttonStyle ?? "pill") as "pill" | "soft");
         setAccentGlow(data.accentGlow ?? true);
-        setPayBtnAccent((data.payBtnAccent ?? "none") as "none" | "outline" | "shine");
+        setPayBtnAccent(
+          (data.payBtnAccent ?? "none") as "none" | "outline" | "shine"
+        );
 
-        const bs = (data.bgStyle ?? "default") as "default" | "solid" | "gradient";
+        const bs = (data.bgStyle ?? "default") as
+          | "default"
+          | "solid"
+          | "gradient";
         setBgStyle(bs);
         setBgColor(cleanHex(data.bgColor ?? "#0A0A0B", "#0A0A0B"));
         setBgColor2(cleanHex(data.bgColor2 ?? "#111114", "#111114"));
@@ -163,15 +175,15 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     payBtnAccent === "outline"
       ? "ring-1 ring-white/25"
       : payBtnAccent === "shine"
-        ? "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/18 before:to-transparent before:content-['']"
-        : "";
+      ? "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/18 before:to-transparent before:content-['']"
+      : "";
 
   const backgroundPreviewStyle =
     bgStyle === "solid"
       ? { background: bgColor }
       : bgStyle === "gradient"
-        ? { background: `linear-gradient(135deg, ${bgColor}, ${bgColor2})` }
-        : { background: "#0A0A0B" };
+      ? { background: `linear-gradient(135deg, ${bgColor}, ${bgColor2})` }
+      : { background: "#0A0A0B" };
 
   const dirty = useMemo(() => {
     // simple dirty check without keeping a separate draft:
@@ -193,7 +205,8 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
           bg_style: bgStyle,
           bg_color: bgStyle === "default" ? null : cleanHex(bgColor, "#0A0A0B"),
-          bg_color_2: bgStyle === "gradient" ? cleanHex(bgColor2, "#111114") : null,
+          bg_color_2:
+            bgStyle === "gradient" ? cleanHex(bgColor2, "#111114") : null,
 
           pay_btn_accent: payBtnAccent,
         })
@@ -222,26 +235,48 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     showToast("Reset");
   }
 
+  // Shared section wrapper (keeps spacing consistent)
+  function Section({
+    title,
+    children,
+  }: {
+    title: string;
+    children: React.ReactNode;
+  }) {
+    return (
+      <div className="mt-6">
+        <div className="mb-3 text-xs tracking-[0.35em] text-white/45">
+          {title}
+        </div>
+        <div className="space-y-3">{children}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white p-8">
-      <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-[#121214]/70 p-6 backdrop-blur-xl">
+    <div className="min-h-screen bg-[#0A0A0B] text-white px-4 py-5 pb-28 md:p-8">
+      <div className="mx-auto w-full max-w-md md:max-w-2xl rounded-2xl border border-white/10 bg-[#121214]/70 p-4 md:p-6 backdrop-blur-xl">
         <a
           href={`/c/${cardId}`}
-          className="mb-4 inline-block rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
+          className="mb-4 inline-block w-full md:w-auto text-center rounded-xl border border-white/12 bg-white/5 px-3 py-3 md:py-2 text-xs text-white/75 hover:bg-white/10"
         >
-           Return to Card
+          Return to Card
         </a>
 
-        <div className="flex items-center justify-between gap-4">
+        {/* Header (stacks on mobile) */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-xl font-semibold">Customize</h1>
-            <p className="mt-1 text-sm text-white/60">Accent, background, and button styling.</p>
+            <p className="mt-1 text-sm text-white/60">
+              Accent, background, and button styling.
+            </p>
           </div>
 
+          {/* Desktop save button (mobile uses sticky bar) */}
           <button
             onClick={save}
             disabled={loading || saving || !isPremium}
-            className="rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/85 hover:bg-white/10 disabled:opacity-50"
+            className="hidden md:inline-flex rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/85 hover:bg-white/10 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -250,10 +285,11 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         {/* Live preview */}
         <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           <div className="p-5">
-            <div className="text-xs tracking-[0.35em] text-white/45">LIVE PREVIEW</div>
+            <div className="text-xs tracking-[0.35em] text-white/45">
+              LIVE PREVIEW
+            </div>
           </div>
 
-          {/* background preview strip */}
           <div className="px-5 pb-5">
             <div
               className="rounded-2xl border border-white/10 p-5"
@@ -281,20 +317,21 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         </div>
 
         {/* Accent */}
-        <div className="mt-6">
-          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">ACCENT COLOR</div>
-
-          {/* preset dots */}
-          <div className="flex flex-wrap gap-3">
+        <Section title="ACCENT COLOR">
+          {/* presets as a tidy grid on mobile */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:flex md:flex-wrap md:gap-3">
             {PRESETS.map((p) => {
-              const selected = accent.toUpperCase() === p.value.toUpperCase();
+              const selected =
+                accent.toUpperCase() === p.value.toUpperCase();
               return (
                 <button
                   key={p.value}
                   type="button"
                   onClick={() => setAccent(p.value.toUpperCase())}
-                  className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition-all ${
-                    selected ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                  className={`flex items-center gap-2 rounded-2xl md:rounded-full border px-3 py-3 md:py-2 text-xs transition-all ${
+                    selected
+                      ? "border-white/30 bg-white/10"
+                      : "border-white/10 bg-white/5 hover:bg-white/10"
                   }`}
                   title={p.name}
                 >
@@ -308,24 +345,21 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
             })}
           </div>
 
-          {/* custom full width color bar */}
-          <div className="mt-4">
-            <ColorBar label="Custom accent" value={accent} onChange={setAccent} />
-          </div>
-        </div>
+          <ColorBar label="Custom accent" value={accent} onChange={setAccent} />
+        </Section>
 
         {/* Background */}
-        <div className="mt-6">
-          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">BACKGROUND</div>
-
-          <div className="flex gap-3">
+        <Section title="BACKGROUND">
+          <div className="grid grid-cols-2 gap-3 md:flex">
             {(["default", "solid", "gradient"] as const).map((k) => (
               <button
                 key={k}
                 type="button"
                 onClick={() => setBgStyle(k)}
-                className={`flex-1 rounded-2xl border px-4 py-3 text-sm capitalize ${
-                  bgStyle === k ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                className={`rounded-2xl border px-4 py-4 md:py-3 text-sm capitalize ${
+                  bgStyle === k
+                    ? "border-white/30 bg-white/10"
+                    : "border-white/10 bg-white/5 hover:bg-white/10"
                 }`}
               >
                 {k}
@@ -333,29 +367,40 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
             ))}
           </div>
 
-          <div className="mt-4 space-y-3">
-            {bgStyle === "solid" && (
-              <ColorBar label="Background color" value={bgColor} onChange={setBgColor} />
-            )}
+          {bgStyle === "solid" && (
+            <ColorBar
+              label="Background color"
+              value={bgColor}
+              onChange={setBgColor}
+            />
+          )}
 
-            {bgStyle === "gradient" && (
-              <>
-                <ColorBar label="Gradient start" value={bgColor} onChange={setBgColor} />
-                <ColorBar label="Gradient end" value={bgColor2} onChange={setBgColor2} />
-              </>
-            )}
-          </div>
-        </div>
+          {bgStyle === "gradient" && (
+            <>
+              <ColorBar
+                label="Gradient start"
+                value={bgColor}
+                onChange={setBgColor}
+              />
+              <ColorBar
+                label="Gradient end"
+                value={bgColor2}
+                onChange={setBgColor2}
+              />
+            </>
+          )}
+        </Section>
 
         {/* Button shape */}
-        <div className="mt-6">
-          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">BUTTON SHAPE</div>
-          <div className="flex gap-3">
+        <Section title="BUTTON SHAPE">
+          <div className="grid grid-cols-2 gap-3 md:flex">
             <button
               type="button"
               onClick={() => setButtonStyle("pill")}
-              className={`flex-1 rounded-2xl border px-4 py-3 text-sm ${
-                buttonStyle === "pill" ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+              className={`rounded-2xl border px-4 py-4 md:py-3 text-sm ${
+                buttonStyle === "pill"
+                  ? "border-white/30 bg-white/10"
+                  : "border-white/10 bg-white/5 hover:bg-white/10"
               }`}
             >
               Pill
@@ -363,61 +408,92 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
             <button
               type="button"
               onClick={() => setButtonStyle("soft")}
-              className={`flex-1 rounded-2xl border px-4 py-3 text-sm ${
-                buttonStyle === "soft" ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+              className={`rounded-2xl border px-4 py-4 md:py-3 text-sm ${
+                buttonStyle === "soft"
+                  ? "border-white/30 bg-white/10"
+                  : "border-white/10 bg-white/5 hover:bg-white/10"
               }`}
             >
               Soft Square
             </button>
           </div>
-        </div>
+        </Section>
 
         {/* Pay button accent */}
-        <div className="mt-6">
-          <div className="mb-3 text-xs tracking-[0.35em] text-white/45">PAY BUTTON ACCENT</div>
-          <div className="flex gap-3">
+        <Section title="PAY BUTTON ACCENT">
+          <div className="grid grid-cols-3 gap-3 md:flex">
             {(["none", "outline", "shine"] as const).map((k) => (
               <button
                 key={k}
                 type="button"
                 onClick={() => setPayBtnAccent(k)}
-                className={`flex-1 rounded-2xl border px-4 py-3 text-sm capitalize ${
-                  payBtnAccent === k ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                className={`rounded-2xl border px-3 py-4 md:px-4 md:py-3 text-sm capitalize ${
+                  payBtnAccent === k
+                    ? "border-white/30 bg-white/10"
+                    : "border-white/10 bg-white/5 hover:bg-white/10"
                 }`}
               >
                 {k}
               </button>
             ))}
           </div>
-        </div>
+        </Section>
 
         {/* Glow */}
-        <div className="mt-6 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-          <div>
-            <div className="text-sm font-medium text-white/85">Accent glow</div>
-            <div className="text-xs text-white/50">Adds a subtle premium glow effect.</div>
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-sm font-medium text-white/85">
+                Accent glow
+              </div>
+              <div className="text-xs text-white/50">
+                Adds a subtle premium glow effect.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setAccentGlow((v) => !v)}
+              className={`w-full md:w-auto rounded-2xl md:rounded-full border px-4 py-3 text-sm ${
+                accentGlow
+                  ? "border-white/25 bg-white/10 text-white/85"
+                  : "border-white/10 bg-transparent text-white/60"
+              }`}
+            >
+              {accentGlow ? "On" : "Off"}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setAccentGlow((v) => !v)}
-            className={`rounded-full border px-3 py-2 text-xs ${
-              accentGlow ? "border-white/25 bg-white/10 text-white/85" : "border-white/10 bg-transparent text-white/60"
-            }`}
-          >
-            {accentGlow ? "On" : "Off"}
-          </button>
         </div>
 
-        <div className="mt-6 flex items-center justify-between">
+        <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <button
             type="button"
             onClick={reset}
-            className="rounded-xl border border-white/12 bg-transparent px-4 py-2 text-sm text-white/70 hover:bg-white/5"
+            className="w-full md:w-auto rounded-xl border border-white/12 bg-transparent px-4 py-3 md:py-2 text-sm text-white/70 hover:bg-white/5"
           >
             Reset to default
           </button>
 
-          <div className="text-xs text-white/40">{isPremium ? "Premium enabled" : "Premium required"}</div>
+          <div className="text-xs text-white/40 text-center md:text-right">
+            {isPremium ? "Premium enabled" : "Premium required"}
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky Save Bar (mobile) */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0A0A0B]/85 backdrop-blur md:hidden">
+        <div className="mx-auto w-full max-w-md px-4 py-3">
+          <button
+            onClick={save}
+            disabled={loading || saving || !isPremium}
+            className="w-full rounded-2xl py-4 font-semibold disabled:opacity-50"
+            style={{
+              backgroundColor: accent,
+              color: lightAccent ? "#000000" : "#FFFFFF",
+            }}
+          >
+            {saving ? "Saving…" : isPremium ? "Save changes" : "Premium required"}
+          </button>
         </div>
       </div>
 
