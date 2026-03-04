@@ -1,10 +1,8 @@
-"use client";
-
 import OwnerGate from "@/components/OwnerGate";
 import AnalyticsClient from "@/components/AnalyticsClient";
 
 export default function AnalyticsPage({ params }: { params: { cardId: string } }) {
-  const { cardId } = params;
+  const cardId = (params.cardId ?? "").trim().toUpperCase();
 
   return (
     <OwnerGate cardId={cardId}>
