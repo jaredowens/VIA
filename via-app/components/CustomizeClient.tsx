@@ -180,7 +180,8 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         ? "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/18 before:to-transparent before:content-['']"
         : "";
 
-  const backgroundPreviewStyle =
+  // Live-page background preview (entire page updates while editing)
+  const pageBgStyle =
     bgStyle === "solid"
       ? { background: bgColor }
       : bgStyle === "gradient"
@@ -199,6 +200,9 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
   const glassCardSoft = bgIsLight ? "bg-black/45 border-white/12" : "bg-black/28 border-white/10";
 
   const bottomGlass = bgIsLight ? "bg-black/80 border-white/20" : "bg-black/60 border-white/12";
+
+  // Accent tint on bar (so it isn't just black)
+  const bottomTint = bgIsLight ? "0.22" : "0.16";
 
   const bottomBtnBase = "rounded-2xl px-4 py-3 text-sm font-semibold transition-all";
   const bottomBtnGlass = bgIsLight
@@ -261,36 +265,37 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
   }
 
   return (
-    <div className="px-6 py-10 pb-36">
-      <div className="mx-auto w-full max-w-[720px]">
+    <div className="relative min-h-screen px-6 py-10 pb-36" style={pageBgStyle}>
+      {/* Subtle darkness overlay so text stays readable on bright gradients */}
+      <div className="pointer-events-none absolute inset-0 bg-black/35" />
+
+      <div className="relative mx-auto w-full max-w-[720px]">
         {/* Header */}
         <div className="mb-2">
           <h1 className="text-xl font-semibold">Customize</h1>
           <p className="mt-1 text-sm text-white/70">Accent, background, and button styling.</p>
         </div>
 
-        {/* Live preview */}
+        {/* Live preview (NO outer wrap behind it) */}
         <Section title="LIVE PREVIEW">
-          <div className={`rounded-2xl border p-4 ${glassCard}`}>
-            <div className="rounded-2xl border border-white/12 p-5" style={backgroundPreviewStyle}>
-              <button
-                className={`relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
-                style={{
-                  backgroundColor: accent,
-                  color: lightAccent ? "#000000" : "#FFFFFF",
-                }}
-                onClick={() => showToast("Preview")}
-                type="button"
-              >
-                Pay Through VIA
-              </button>
+          <div className="rounded-2xl border border-white/12 p-5" style={pageBgStyle}>
+            <button
+              className={`relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
+              style={{
+                backgroundColor: accent,
+                color: lightAccent ? "#000000" : "#FFFFFF",
+              }}
+              onClick={() => showToast("Preview")}
+              type="button"
+            >
+              Pay Through VIA
+            </button>
 
-              {!isPremium && (
-                <div className="mt-3 text-sm text-white/70">
-                  Customize is Premium-only. Upgrade to unlock.
-                </div>
-              )}
-            </div>
+            {!isPremium && (
+              <div className="mt-3 text-sm text-white/70">
+                Customize is Premium-only. Upgrade to unlock.
+              </div>
+            )}
           </div>
         </Section>
 
@@ -424,14 +429,17 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         </div>
       </div>
 
-      {/* Bottom bar (fixed; sticky won't work inside some shells with overflow) */}
+      {/* Bottom bar (fixed; always visible) */}
       <div className="fixed inset-x-0 bottom-0 z-50 pb-[calc(env(safe-area-inset-bottom)+12px)] md:hidden">
         <div className="mx-auto w-full max-w-[720px] px-4">
           <div
             className={`relative overflow-hidden rounded-3xl border shadow-[0_14px_40px_rgba(0,0,0,0.55)] backdrop-blur-xl ${bottomGlass}`}
           >
-            {/* contrast fade for light gradients behind */}
+            {/* contrast fade */}
             <div className="pointer-events-none absolute inset-x-0 -top-10 h-10 bg-gradient-to-t from-black/40 to-transparent" />
+
+            {/* Accent tint (so bar isn't just black) */}
+            <div className="pointer-events-none absolute inset-0" style={{ background: accent, opacity: Number(bottomTint) }} />
 
             <div className="relative px-4 py-3">
               <div className="flex gap-3">
@@ -456,7 +464,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                 </button>
               </div>
 
-              <div className="mt-2 text-center text-[11px] text-white/65">
+              <div className="mt-2 text-center text-[11px] text-white/70">
                 Changes apply instantly to your card look.
               </div>
             </div>
