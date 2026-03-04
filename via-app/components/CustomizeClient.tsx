@@ -1,3 +1,4 @@
+// components/CustomizeClient.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -232,211 +233,176 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-white" style={{ background: "#0A0A0B" }}>
-      {/* Background glow like /c */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-[90px]" />
-        <div className="absolute top-1/3 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/6 blur-[110px]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_140px_rgba(0,0,0,0.85)]" />
-        <div className="grain absolute inset-0 opacity-[0.10]" />
-      </div>
+    <div className="px-6 py-10 pb-28">
+      <div className="mx-auto w-full max-w-[720px]">
+        {/* Header */}
+        <div className="mb-2">
+          <h1 className="text-xl font-semibold">Customize</h1>
+          <p className="mt-1 text-sm text-white/60">Accent, background, and button styling.</p>
+        </div>
 
-      {/* CONTENT (NO INNER BLACK SHELL) */}
-      <div className="relative px-6 py-10 pb-28">
-        <div className="mx-auto w-full max-w-[720px]">
-          {/* Top row */}
-          <div className="mb-6 flex items-center justify-between gap-4">
-            <a
-              href={`/c/${cardId}`}
-              className="inline-block rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
-            >
-              Return to Card
-            </a>
-
-            <div className="hidden md:flex items-center gap-3">
+        {/* Live preview */}
+        <Section title="LIVE PREVIEW">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="rounded-2xl border border-white/10 p-5" style={backgroundPreviewStyle}>
               <button
+                className={`relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
+                style={{
+                  backgroundColor: accent,
+                  color: lightAccent ? "#000000" : "#FFFFFF",
+                }}
+                onClick={() => showToast("Preview")}
                 type="button"
-                onClick={reset}
-                className="rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
               >
-                Reset
+                Pay Through VIA
               </button>
-              <button
-                onClick={() => save({ goBack: true })}
-                disabled={loading || saving || !isPremium}
-                className="rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/85 hover:bg-white/10 disabled:opacity-50"
-              >
-                {saving ? "Saving…" : "Save & return"}
-              </button>
+
+              {!isPremium && (
+                <div className="mt-3 text-sm text-white/60">
+                  Customize is Premium-only. Upgrade to unlock.
+                </div>
+              )}
             </div>
           </div>
+        </Section>
 
-          {/* Header */}
-          <div className="mb-2">
-            <h1 className="text-xl font-semibold">Customize</h1>
-            <p className="mt-1 text-sm text-white/60">Accent, background, and button styling.</p>
+        <div className="mt-8 h-px bg-white/10" />
+
+        {/* Accent */}
+        <Section title="ACCENT COLOR">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {PRESETS.map((p) => {
+              const selected = accent.toUpperCase() === p.value.toUpperCase();
+              return (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => setAccent(p.value.toUpperCase())}
+                  className={`flex items-center gap-2 rounded-2xl border px-3 py-4 text-xs transition-all ${
+                    selected ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+                  }`}
+                  title={p.name}
+                >
+                  <span
+                    className="h-4 w-4 rounded-full border border-white/15"
+                    style={{ backgroundColor: p.value }}
+                  />
+                  <span className="text-white/80">{p.name}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Live preview */}
-          <Section title="LIVE PREVIEW">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="rounded-2xl border border-white/10 p-5" style={backgroundPreviewStyle}>
-                <button
-                  className={`relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
-                  style={{
-                    backgroundColor: accent,
-                    color: lightAccent ? "#000000" : "#FFFFFF",
-                  }}
-                  onClick={() => showToast("Preview")}
-                  type="button"
-                >
-                  Pay Through VIA
-                </button>
+          <ColorBar label="Custom accent" value={accent} onChange={setAccent} />
+        </Section>
 
-                {!isPremium && (
-                  <div className="mt-3 text-sm text-white/60">
-                    Customize is Premium-only. Upgrade to unlock.
-                  </div>
-                )}
-              </div>
-            </div>
-          </Section>
+        <div className="mt-8 h-px bg-white/10" />
 
-          <div className="mt-8 h-px bg-white/10" />
-
-          {/* Accent */}
-          <Section title="ACCENT COLOR">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {PRESETS.map((p) => {
-                const selected = accent.toUpperCase() === p.value.toUpperCase();
-                return (
-                  <button
-                    key={p.value}
-                    type="button"
-                    onClick={() => setAccent(p.value.toUpperCase())}
-                    className={`flex items-center gap-2 rounded-2xl border px-3 py-4 text-xs transition-all ${
-                      selected ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
-                    }`}
-                    title={p.name}
-                  >
-                    <span className="h-4 w-4 rounded-full border border-white/15" style={{ backgroundColor: p.value }} />
-                    <span className="text-white/80">{p.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <ColorBar label="Custom accent" value={accent} onChange={setAccent} />
-          </Section>
-
-          <div className="mt-8 h-px bg-white/10" />
-
-          {/* Background */}
-          <Section title="BACKGROUND" subtitle="Default, solid color, or gradient.">
-            <div className="grid grid-cols-3 gap-3">
-              {(["default", "solid", "gradient"] as const).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setBgStyle(k)}
-                  className={`rounded-2xl border px-3 py-4 text-sm capitalize ${
-                    bgStyle === k ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
-                  }`}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-
-            {bgStyle === "solid" && <ColorBar label="Background color" value={bgColor} onChange={setBgColor} />}
-
-            {bgStyle === "gradient" && (
-              <>
-                <ColorBar label="Gradient start" value={bgColor} onChange={setBgColor} />
-                <ColorBar label="Gradient end" value={bgColor2} onChange={setBgColor2} />
-              </>
-            )}
-          </Section>
-
-          <div className="mt-8 h-px bg-white/10" />
-
-          {/* Button shape */}
-          <Section title="BUTTON SHAPE" subtitle="Choose the payment button radius.">
-            <div className="grid grid-cols-2 gap-3">
+        {/* Background */}
+        <Section title="BACKGROUND" subtitle="Default, solid color, or gradient.">
+          <div className="grid grid-cols-3 gap-3">
+            {(["default", "solid", "gradient"] as const).map((k) => (
               <button
+                key={k}
                 type="button"
-                onClick={() => setButtonStyle("pill")}
-                className={`rounded-2xl border px-4 py-4 text-sm ${
-                  buttonStyle === "pill" ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+                onClick={() => setBgStyle(k)}
+                className={`rounded-2xl border px-3 py-4 text-sm capitalize ${
+                  bgStyle === k ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
                 }`}
               >
-                Pill
+                {k}
               </button>
-              <button
-                type="button"
-                onClick={() => setButtonStyle("soft")}
-                className={`rounded-2xl border px-4 py-4 text-sm ${
-                  buttonStyle === "soft" ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
-                }`}
-              >
-                Soft Square
-              </button>
-            </div>
-          </Section>
+            ))}
+          </div>
 
-          <div className="mt-8 h-px bg-white/10" />
+          {bgStyle === "solid" && <ColorBar label="Background color" value={bgColor} onChange={setBgColor} />}
 
-          {/* Pay button accent */}
-          <Section title="PAY BUTTON ACCENT" subtitle="Extra premium flair on the pay button.">
-            <div className="grid grid-cols-3 gap-3">
-              {(["none", "outline", "shine"] as const).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setPayBtnAccent(k)}
-                  className={`rounded-2xl border px-3 py-4 text-sm capitalize ${
-                    payBtnAccent === k ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
-                  }`}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-          </Section>
+          {bgStyle === "gradient" && (
+            <>
+              <ColorBar label="Gradient start" value={bgColor} onChange={setBgColor} />
+              <ColorBar label="Gradient end" value={bgColor2} onChange={setBgColor2} />
+            </>
+          )}
+        </Section>
 
-          <div className="mt-8 h-px bg-white/10" />
+        <div className="mt-8 h-px bg-white/10" />
 
-          {/* Glow */}
-          <Section title="ACCENT GLOW" subtitle="Adds a subtle premium glow effect.">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4">
-              <div>
-                <div className="text-sm font-medium text-white/85">Accent glow</div>
-                <div className="text-xs text-white/50">Toggle glow on the pay button.</div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setAccentGlow((v) => !v)}
-                className={`w-full md:w-auto rounded-2xl border px-4 py-3 text-sm ${
-                  accentGlow ? "border-white/25 bg-white/10 text-white/85" : "border-white/12 bg-transparent text-white/60"
-                }`}
-              >
-                {accentGlow ? "On" : "Off"}
-              </button>
-            </div>
-          </Section>
-
-          <div className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        {/* Button shape */}
+        <Section title="BUTTON SHAPE" subtitle="Choose the payment button radius.">
+          <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={reset}
-              className="w-full md:w-auto rounded-2xl border border-white/12 bg-transparent px-4 py-4 text-sm font-semibold text-white/75 hover:bg-white/5"
+              onClick={() => setButtonStyle("pill")}
+              className={`rounded-2xl border px-4 py-4 text-sm ${
+                buttonStyle === "pill" ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+              }`}
             >
-              Reset to default
+              Pill
             </button>
-            <div className="text-xs text-white/40 text-center md:text-right">
-              {isPremium ? "Premium enabled" : "Premium required"}
+            <button
+              type="button"
+              onClick={() => setButtonStyle("soft")}
+              className={`rounded-2xl border px-4 py-4 text-sm ${
+                buttonStyle === "soft" ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+              }`}
+            >
+              Soft Square
+            </button>
+          </div>
+        </Section>
+
+        <div className="mt-8 h-px bg-white/10" />
+
+        {/* Pay button accent */}
+        <Section title="PAY BUTTON ACCENT" subtitle="Extra premium flair on the pay button.">
+          <div className="grid grid-cols-3 gap-3">
+            {(["none", "outline", "shine"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setPayBtnAccent(k)}
+                className={`rounded-2xl border px-3 py-4 text-sm capitalize ${
+                  payBtnAccent === k ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+                }`}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        <div className="mt-8 h-px bg-white/10" />
+
+        {/* Glow */}
+        <Section title="ACCENT GLOW" subtitle="Adds a subtle premium glow effect.">
+          <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-sm font-medium text-white/85">Accent glow</div>
+              <div className="text-xs text-white/50">Toggle glow on the pay button.</div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setAccentGlow((v) => !v)}
+              className={`w-full rounded-2xl border px-4 py-3 text-sm md:w-auto ${
+                accentGlow ? "border-white/25 bg-white/10 text-white/85" : "border-white/12 bg-transparent text-white/60"
+              }`}
+            >
+              {accentGlow ? "On" : "Off"}
+            </button>
+          </div>
+        </Section>
+
+        <div className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <button
+            type="button"
+            onClick={reset}
+            className="w-full rounded-2xl border border-white/12 bg-transparent px-4 py-4 text-sm font-semibold text-white/75 hover:bg-white/5 md:w-auto"
+          >
+            Reset to default
+          </button>
+          <div className="text-center text-xs text-white/40 md:text-right">
+            {isPremium ? "Premium enabled" : "Premium required"}
           </div>
         </div>
       </div>
@@ -472,13 +438,6 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
           {toast}
         </div>
       )}
-
-      <style jsx>{`
-        .grain {
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
-          mix-blend-mode: overlay;
-        }
-      `}</style>
     </div>
   );
 }
