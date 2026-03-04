@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
 function isoDay(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -13,21 +14,30 @@ export async function GET(req: Request) {
 
     const cardId = cardIdRaw.trim().toUpperCase();
 
-    // Use anon key + auth cookies (Supabase will treat as authenticated if session cookie exists)
-    const supabase = createClient(
+    const cookieStore = await cookies();
+
+    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
-        global: {
-          headers: {
-            // forward cookies so RLS "authenticated" works
-            cookie: req.headers.get("cookie") ?? "",
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set() {
+            // not needed for reads
+          },
+          remove() {
+            // not needed for reads
           },
         },
       }
     );
 
-    // Verify: card exists, premium enabled, and requester is owner (via RLS select on cards OR explicit check)
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth?.user?.id ?? null;
+    if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
     const { data: card, error: cardErr } = await supabase
       .from("cards")
       .select("id, owner_user_id, is_premium")
@@ -36,26 +46,15 @@ export async function GET(req: Request) {
 
     if (cardErr) return NextResponse.json({ error: "Supabase error", details: cardErr.message }, { status: 400 });
     if (!card) return NextResponse.json({ error: "Card not found" }, { status: 404 });
-
-    // Get auth user (owner check)
-    const { data: auth } = await supabase.auth.getUser();
-    const userId = auth?.user?.id ?? null;
-
-    if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     if (card.owner_user_id !== userId) return NextResponse.json({ error: "Not owner" }, { status: 403 });
-
-    // Premium gate (you can decide if analytics should show locked preview)
     if (!card.is_premium) return NextResponse.json({ error: "Premium required" }, { status: 402 });
 
-    // Time windows
     const now = new Date();
     const start7 = new Date(now);
-    start7.setDate(now.getDate() - 6); // inclusive 7 days including today
+    start7.setDate(now.getDate() - 6);
     start7.setHours(0, 0, 0, 0);
-
     const start7Iso = start7.toISOString();
 
-    // Pull last 7 days events + last 20 events for activity
     const [{ data: ev7, error: ev7Err }, { data: recent, error: recentErr }] = await Promise.all([
       supabase
         .from("card_events")
@@ -76,7 +75,6 @@ export async function GET(req: Request) {
     const events7 = ev7 ?? [];
     const recentEvents = recent ?? [];
 
-    // Totals (all time) - use count queries (cheap)
     const [viewsAll, linkAll, payAll, saveAll] = await Promise.all([
       supabase.from("card_events").select("id", { count: "exact", head: true }).eq("card_id", cardId).eq("event_type", "view"),
       supabase.from("card_events").select("id", { count: "exact", head: true }).eq("card_id", cardId).eq("event_type", "link_click"),
@@ -91,7 +89,6 @@ export async function GET(req: Request) {
       saveContacts: saveAll.count ?? 0,
     };
 
-    // Last 7 days counts by type
     const last7 = {
       views: events7.filter((e) => e.event_type === "view").length,
       linkClicks: events7.filter((e) => e.event_type === "link_click").length,
@@ -99,7 +96,6 @@ export async function GET(req: Request) {
       saveContacts: events7.filter((e) => e.event_type === "save_contact").length,
     };
 
-    // Views per day series (7 days)
     const days: string[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(start7);
@@ -107,7 +103,7 @@ export async function GET(req: Request) {
       days.push(isoDay(d));
     }
 
-    const viewsByDay: Array<{ day: string; views: number }> = days.map((day) => ({ day, views: 0 }));
+    const viewsByDay = days.map((day) => ({ day, views: 0 }));
     for (const e of events7) {
       if (e.event_type !== "view") continue;
       const day = String(e.created_at).slice(0, 10);
@@ -115,13 +111,7 @@ export async function GET(req: Request) {
       if (idx >= 0) viewsByDay[idx].views += 1;
     }
 
-    return NextResponse.json({
-      cardId,
-      totals,
-      last7,
-      viewsByDay,
-      recentEvents,
-    });
+    return NextResponse.json({ cardId, totals, last7, viewsByDay, recentEvents });
   } catch (err: any) {
     return NextResponse.json({ error: "Server error", details: String(err?.message ?? err) }, { status: 500 });
   }
