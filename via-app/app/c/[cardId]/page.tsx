@@ -235,7 +235,8 @@ function isLightColor(hex: string) {
 export default function CardPage() {
   const router = useRouter();
   const { cardId } = useParams<{ cardId: string }>();
-  if (!cardId) return null;
+const cid = (cardId ?? "").trim().toUpperCase();
+if (!cid) return null;
 
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
 
@@ -843,21 +844,21 @@ style={{
 
       <div className="space-y-2">
         <a
-          href={`/c/${cardId}/settings/profile`}
+          href={`/c/${cid}/settings/profile`}
           className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
         >
           Profile Settings
         </a>
 
         <a
-          href={`/c/${cardId}/customize`}
+          href={`/c/${cid}/customize`}
           className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
         >
           Customize
         </a>
 
         <a
-          href={`/c/${cardId}/analytics`}
+          href={`/c/${cid}/analytics`}
           className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
         >
           Analytics
@@ -866,14 +867,14 @@ style={{
         <div className="my-3 h-px bg-white/10" />
 
         <a
-          href={`/setup/${cardId}/edit/personal`}
+          href={`/setup/${cid}/edit/personal`}
           className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
         >
           Personal Info
         </a>
 
         <a
-          href={`/setup/${cardId}/edit/links`}
+          href={`/setup/${cid}/edit/links`}
           className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
         >
           Payment & Links
