@@ -240,7 +240,9 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white" style={{ background: "#0A0A0B" }}>
-      {/* Same background treatment as /c */}
+    <div className="mb-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white/80">
+      CUSTOMIZE BUILD MARKER: 9f3a ✅
+    </div>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-32 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-[90px]" />
         <div className="absolute top-1/3 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-white/6 blur-[110px]" />
