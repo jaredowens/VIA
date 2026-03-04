@@ -188,6 +188,21 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         ? { background: `linear-gradient(135deg, ${bgColor}, ${bgColor2})` }
         : { background: "#0A0A0B" };
 
+          // --- Mobile bottom bar readability + sizing ---
+  const bgIsLight =
+    bgStyle === "solid"
+      ? isLightColor(bgColor)
+      : bgStyle === "gradient"
+        ? isLightColor(bgColor) || isLightColor(bgColor2)
+        : false;
+
+  const bottomGlassClass = bgIsLight
+    ? "bg-black/70 border-white/15"
+    : "bg-[#0A0A0B]/55 border-white/10";
+
+  const bottomBtnBase = "rounded-2xl px-4 py-3 text-sm font-semibold transition-all";
+  const bottomBtnGlass = "border border-white/12 bg-white/7 text-white/85 hover:bg-white/10";
+
   async function save({ goBack }: { goBack: boolean }) {
     if (!isPremium) return showToast("Premium required");
 
@@ -232,19 +247,24 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     showToast("Reset");
   }
 
-  return (
+   return (
     <div className="px-6 py-10 pb-28">
       <div className="mx-auto w-full max-w-[720px]">
         {/* Header */}
         <div className="mb-2">
           <h1 className="text-xl font-semibold">Customize</h1>
-          <p className="mt-1 text-sm text-white/60">Accent, background, and button styling.</p>
+          <p className="mt-1 text-sm text-white/60">
+            Accent, background, and button styling.
+          </p>
         </div>
 
         {/* Live preview */}
         <Section title="LIVE PREVIEW">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="rounded-2xl border border-white/10 p-5" style={backgroundPreviewStyle}>
+            <div
+              className="rounded-2xl border border-white/10 p-5"
+              style={backgroundPreviewStyle}
+            >
               <button
                 className={`relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
                 style={{
@@ -272,14 +292,17 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         <Section title="ACCENT COLOR">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {PRESETS.map((p) => {
-              const selected = accent.toUpperCase() === p.value.toUpperCase();
+              const selected =
+                accent.toUpperCase() === p.value.toUpperCase();
               return (
                 <button
                   key={p.value}
                   type="button"
                   onClick={() => setAccent(p.value.toUpperCase())}
                   className={`flex items-center gap-2 rounded-2xl border px-3 py-4 text-xs transition-all ${
-                    selected ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+                    selected
+                      ? "border-white/30 bg-white/10"
+                      : "border-white/12 bg-white/5 hover:bg-white/10"
                   }`}
                   title={p.name}
                 >
@@ -307,7 +330,9 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
                 type="button"
                 onClick={() => setBgStyle(k)}
                 className={`rounded-2xl border px-3 py-4 text-sm capitalize ${
-                  bgStyle === k ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+                  bgStyle === k
+                    ? "border-white/30 bg-white/10"
+                    : "border-white/12 bg-white/5 hover:bg-white/10"
                 }`}
               >
                 {k}
@@ -315,12 +340,26 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
             ))}
           </div>
 
-          {bgStyle === "solid" && <ColorBar label="Background color" value={bgColor} onChange={setBgColor} />}
+          {bgStyle === "solid" && (
+            <ColorBar
+              label="Background color"
+              value={bgColor}
+              onChange={setBgColor}
+            />
+          )}
 
           {bgStyle === "gradient" && (
             <>
-              <ColorBar label="Gradient start" value={bgColor} onChange={setBgColor} />
-              <ColorBar label="Gradient end" value={bgColor2} onChange={setBgColor2} />
+              <ColorBar
+                label="Gradient start"
+                value={bgColor}
+                onChange={setBgColor}
+              />
+              <ColorBar
+                label="Gradient end"
+                value={bgColor2}
+                onChange={setBgColor2}
+              />
             </>
           )}
         </Section>
@@ -334,16 +373,21 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
               type="button"
               onClick={() => setButtonStyle("pill")}
               className={`rounded-2xl border px-4 py-4 text-sm ${
-                buttonStyle === "pill" ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+                buttonStyle === "pill"
+                  ? "border-white/30 bg-white/10"
+                  : "border-white/12 bg-white/5 hover:bg-white/10"
               }`}
             >
               Pill
             </button>
+
             <button
               type="button"
               onClick={() => setButtonStyle("soft")}
               className={`rounded-2xl border px-4 py-4 text-sm ${
-                buttonStyle === "soft" ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
+                buttonStyle === "soft"
+                  ? "border-white/30 bg-white/10"
+                  : "border-white/12 bg-white/5 hover:bg-white/10"
               }`}
             >
               Soft Square
@@ -353,82 +397,72 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
         <div className="mt-8 h-px bg-white/10" />
 
-        {/* Pay button accent */}
-        <Section title="PAY BUTTON ACCENT" subtitle="Extra premium flair on the pay button.">
-          <div className="grid grid-cols-3 gap-3">
-            {(["none", "outline", "shine"] as const).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setPayBtnAccent(k)}
-                className={`rounded-2xl border px-3 py-4 text-sm capitalize ${
-                  payBtnAccent === k ? "border-white/30 bg-white/10" : "border-white/12 bg-white/5 hover:bg-white/10"
-                }`}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-        </Section>
-
-        <div className="mt-8 h-px bg-white/10" />
-
         {/* Glow */}
         <Section title="ACCENT GLOW" subtitle="Adds a subtle premium glow effect.">
           <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-sm font-medium text-white/85">Accent glow</div>
-              <div className="text-xs text-white/50">Toggle glow on the pay button.</div>
+              <div className="text-sm font-medium text-white/85">
+                Accent glow
+              </div>
+              <div className="text-xs text-white/50">
+                Toggle glow on the pay button.
+              </div>
             </div>
 
             <button
               type="button"
               onClick={() => setAccentGlow((v) => !v)}
               className={`w-full rounded-2xl border px-4 py-3 text-sm md:w-auto ${
-                accentGlow ? "border-white/25 bg-white/10 text-white/85" : "border-white/12 bg-transparent text-white/60"
+                accentGlow
+                  ? "border-white/25 bg-white/10 text-white/85"
+                  : "border-white/12 bg-transparent text-white/60"
               }`}
             >
               {accentGlow ? "On" : "Off"}
             </button>
           </div>
         </Section>
-
-        <div className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <button
-            type="button"
-            onClick={reset}
-            className="w-full rounded-2xl border border-white/12 bg-transparent px-4 py-4 text-sm font-semibold text-white/75 hover:bg-white/5 md:w-auto"
-          >
-            Reset to default
-          </button>
-          <div className="text-center text-xs text-white/40 md:text-right">
-            {isPremium ? "Premium enabled" : "Premium required"}
-          </div>
-        </div>
       </div>
 
-      {/* Sticky bottom bar (mobile): Save & return */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0A0A0B]/85 backdrop-blur md:hidden">
-        <div className="mx-auto w-full max-w-[720px] px-6 py-3">
+      {/* Mobile bottom bar */}
+      <div
+        className={`relative fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur-xl ${bottomGlassClass} md:hidden`}
+      >
+        <div className="pointer-events-none absolute inset-x-0 -top-10 h-10 bg-gradient-to-t from-black/35 to-transparent" />
+
+        <div className="mx-auto w-full max-w-[720px] px-4 py-3">
           <div className="flex gap-3">
             <button
               type="button"
               onClick={reset}
-              className="flex-1 rounded-2xl border border-white/12 bg-white/5 py-4 font-semibold text-white/80 hover:bg-white/10"
+              className={`flex-1 ${bottomBtnBase} ${bottomBtnGlass}`}
             >
               Reset
             </button>
+
             <button
+              type="button"
               onClick={() => save({ goBack: true })}
               disabled={loading || saving || !isPremium}
-              className="flex-[1.2] rounded-2xl py-4 font-semibold disabled:opacity-50"
+              className={`relative flex-[1.25] overflow-hidden border border-white/12 ${bottomBtnBase} disabled:opacity-50`}
               style={{
                 backgroundColor: accent,
                 color: lightAccent ? "#000000" : "#FFFFFF",
               }}
             >
-              {saving ? "Saving…" : isPremium ? "Save & return" : "Premium required"}
+              <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/18 to-transparent" />
+              <span className="relative">
+                {saving
+                  ? "Saving…"
+                  : isPremium
+                  ? "Save & return"
+                  : "Premium required"}
+              </span>
             </button>
+          </div>
+
+          <div className="mt-2 text-center text-[11px] text-white/55">
+            Changes apply to your card’s payment button & background.
           </div>
         </div>
       </div>
