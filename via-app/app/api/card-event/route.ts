@@ -6,14 +6,13 @@ const ALLOWED = new Set(["view", "link_click", "pay_click", "save_contact"]);
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
+
     const cardId = String(body?.cardId ?? "").trim().toUpperCase();
     const eventType = String(body?.eventType ?? "").trim();
     const meta = typeof body?.meta === "object" && body?.meta ? body.meta : {};
 
     if (!cardId) return NextResponse.json({ error: "Missing cardId" }, { status: 400 });
-    if (!ALLOWED.has(eventType)) {
-      return NextResponse.json({ error: "Invalid eventType" }, { status: 400 });
-    }
+    if (!ALLOWED.has(eventType)) return NextResponse.json({ error: "Invalid eventType" }, { status: 400 });
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
