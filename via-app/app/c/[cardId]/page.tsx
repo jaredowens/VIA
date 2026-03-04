@@ -258,6 +258,17 @@ export default function CardPage() {
     showToast("Copied");
   }
 
+  function track(
+  eventType: "link_click" | "pay_click" | "save_contact",
+  meta: any = {}
+) {
+  fetch("/api/card-event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cardId, eventType, meta }),
+  }).catch(() => {});
+}
+
   async function refreshOwner() {
     try {
       setOwnerCheck((p) => ({ ...p, loading: true }));
@@ -281,6 +292,24 @@ export default function CardPage() {
     await supabase.auth.signOut();
     router.push("/login");
   }
+
+  useEffect(() => {
+  if (status !== "claimed") return;
+
+  const key = `via:viewed:${cardId}`;
+  if (sessionStorage.getItem(key)) return;
+
+  sessionStorage.setItem(key, "1");
+
+  fetch("/api/card-event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      cardId,
+      eventType: "view",
+    }),
+  }).catch(() => {});
+}, [status, cardId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -531,7 +560,10 @@ const backgroundStyle =
 <div className="mt-3">
   {isPremium ? (
     <button
-      onClick={() => showToast("Pay Through VIA coming soon")}
+      onClick={() => {
+  track("pay_click");
+  showToast("Pay Through VIA coming soon");
+}}
    className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
 style={{
   backgroundColor: accent,
@@ -647,10 +679,12 @@ style={{
                     return (
                       <button
                         key={`${it.id}-${idx}`}
-                        onClick={() => {
-                          if (href) window.location.href = href;
-                          else copyText(it.value);
-                        }}
+                       onClick={() => {
+  track("link_click", { type: it.type });
+
+  if (href) window.location.href = href;
+  else copyText(it.value);
+}}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           copyText(it.value);
@@ -708,7 +742,10 @@ style={{
 
                   {!ownerCheck.isOwner && showSaveContact && (
                     <button
-                      onClick={saveContact}
+                     onClick={() => {
+  track("save_contact");
+  saveContact();
+}}
                       disabled={!canSaveContact || savingContact}
                       className="group relative w-full overflow-hidden rounded-2xl border border-white/12 bg-white/5 px-4 py-4 font-medium tracking-wide text-white/90 transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/7 disabled:opacity-60 disabled:hover:translate-y-0"
                     >

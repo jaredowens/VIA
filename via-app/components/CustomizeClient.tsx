@@ -229,7 +229,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
           href={`/c/${cardId}`}
           className="mb-4 inline-block rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
         >
-          ← Return to Card
+           Return to Card
         </a>
 
         <div className="flex items-center justify-between gap-4">
