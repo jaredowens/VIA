@@ -23,7 +23,6 @@ type Payload = {
   buttonStyle?: "pill" | "soft";
   accentGlow?: boolean;
 
-  // NEW
   bgStyle?: "default" | "solid" | "gradient";
   bgColor?: string | null;
   bgColor2?: string | null;
@@ -41,13 +40,51 @@ const PRESETS = [
   { name: "Stealth", value: "#111827" },
 ];
 
-// returns "" if invalid
-function normalizeHex(input: string) {
-  const t = (input ?? "").trim();
-  if (!t) return "";
-  const v = t.startsWith("#") ? t : `#${t}`;
-  const ok = /^#[0-9a-fA-F]{6}$/.test(v);
-  return ok ? v.toUpperCase() : "";
+function cleanHex(v: string, fallback: string) {
+  const t = (v ?? "").trim();
+  const ok = /^#[0-9a-fA-F]{6}$/.test(t);
+  return ok ? t.toUpperCase() : fallback;
+}
+
+/**
+ * Full-width "color bar" control.
+ * No typing. No apply. Just pick color.
+ */
+function ColorBar({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (hex: string) => void;
+}) {
+  const safe = cleanHex(value, "#000000");
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-xs text-white/60">{label}</div>
+        <div className="text-[11px] tracking-wider text-white/45">{safe}</div>
+      </div>
+
+      <div className="relative h-12 w-full overflow-hidden rounded-xl border border-white/10">
+        {/* Nice visual bar */}
+        <div className="absolute inset-0" style={{ background: safe }} />
+
+        {/* Native color input on top (click anywhere) */}
+        <input
+          type="color"
+          value={safe}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label={label}
+        />
+
+        {/* subtle sheen */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/12 to-transparent" />
+      </div>
+    </div>
+  );
 }
 
 export default function CustomizeClient({ cardId }: { cardId: string }) {
@@ -56,21 +93,16 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
   const [isPremium, setIsPremium] = useState(false);
 
-  // Accent
+  // Accent / premium button
   const [accent, setAccent] = useState("#7C3AED");
-  const [hexDraft, setHexDraft] = useState("#7C3AED");
-
-  // Button
   const [buttonStyle, setButtonStyle] = useState<"pill" | "soft">("pill");
   const [accentGlow, setAccentGlow] = useState(true);
+  const [payBtnAccent, setPayBtnAccent] = useState<"none" | "outline" | "shine">("none");
 
-  // NEW: Background
+  // Background
   const [bgStyle, setBgStyle] = useState<"default" | "solid" | "gradient">("default");
   const [bgColor, setBgColor] = useState("#0A0A0B");
   const [bgColor2, setBgColor2] = useState("#111114");
-
-  // NEW: Pay button accent
-  const [payBtnAccent, setPayBtnAccent] = useState<"none" | "outline" | "shine">("none");
 
   const [toast, setToast] = useState("");
 
@@ -81,7 +113,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     setTimeout(() => setToast(""), 1400);
   }
 
-  // load current settings from public payload (fast)
+  // load current settings
   useEffect(() => {
     let cancelled = false;
 
@@ -93,28 +125,21 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         });
         if (!res.ok) throw new Error("load failed");
         const data = (await res.json()) as Payload;
-
         if (cancelled) return;
 
-        const a = (data.accentColor ?? "#7C3AED").trim() || "#7C3AED";
+        const a = cleanHex((data.accentColor ?? "#7C3AED").trim(), "#7C3AED");
         setAccent(a);
-        setHexDraft(a);
 
         setButtonStyle((data.buttonStyle ?? "pill") as "pill" | "soft");
         setAccentGlow(data.accentGlow ?? true);
+        setPayBtnAccent((data.payBtnAccent ?? "none") as "none" | "outline" | "shine");
 
-        setIsPremium(Boolean(data.isPremium));
-
-        // NEW
         const bs = (data.bgStyle ?? "default") as "default" | "solid" | "gradient";
         setBgStyle(bs);
+        setBgColor(cleanHex(data.bgColor ?? "#0A0A0B", "#0A0A0B"));
+        setBgColor2(cleanHex(data.bgColor2 ?? "#111114", "#111114"));
 
-        const c1 = normalizeHex(data.bgColor ?? "") || "#0A0A0B";
-        const c2 = normalizeHex(data.bgColor2 ?? "") || "#111114";
-        setBgColor(c1);
-        setBgColor2(c2);
-
-        setPayBtnAccent((data.payBtnAccent ?? "none") as "none" | "outline" | "shine");
+        setIsPremium(Boolean(data.isPremium));
       } catch {
         if (!cancelled) showToast("Could not load");
       } finally {
@@ -133,14 +158,15 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     ? "shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_12px_36px_rgba(0,0,0,0.55)]"
     : "";
 
+  // Pay button accent styling (extra premium flair)
   const payBtnAccentClass =
     payBtnAccent === "outline"
       ? "ring-1 ring-white/25"
       : payBtnAccent === "shine"
-        ? "relative before:absolute before:inset-0 before:rounded-[inherit] before:bg-gradient-to-r before:from-white/20 before:via-white/5 before:to-white/20 before:opacity-60 before:blur-[6px]"
+        ? "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/18 before:to-transparent before:content-['']"
         : "";
 
-  const previewBgStyle =
+  const backgroundPreviewStyle =
     bgStyle === "solid"
       ? { background: bgColor }
       : bgStyle === "gradient"
@@ -148,37 +174,33 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         : { background: "#0A0A0B" };
 
   const dirty = useMemo(() => {
-    const normalized = normalizeHex(hexDraft) || accent;
-    // (You can expand this later if you want a “you have unsaved changes” banner)
-    return normalized !== accent || false;
-  }, [hexDraft, accent]);
+    // simple dirty check without keeping a separate draft:
+    // (optional; you can remove if you don't care)
+    return true;
+  }, []);
 
   async function save() {
     if (!isPremium) return showToast("Premium required");
-
-    const normalizedAccent = normalizeHex(hexDraft) || accent;
 
     setSaving(true);
     try {
       const { error } = await supabase
         .from("cards")
         .update({
-          accent_color: normalizedAccent,
+          accent_color: cleanHex(accent, "#7C3AED"),
           button_style: buttonStyle,
           accent_glow: accentGlow,
 
-          // NEW
           bg_style: bgStyle,
-          bg_color: bgStyle === "default" ? null : bgColor,
-          bg_color_2: bgStyle === "gradient" ? bgColor2 : null,
+          bg_color: bgStyle === "default" ? null : cleanHex(bgColor, "#0A0A0B"),
+          bg_color_2: bgStyle === "gradient" ? cleanHex(bgColor2, "#111114") : null,
+
           pay_btn_accent: payBtnAccent,
         })
         .eq("id", cardId);
 
       if (error) throw error;
 
-      setAccent(normalizedAccent);
-      setHexDraft(normalizedAccent);
       showToast("Saved");
     } catch (e: any) {
       showToast(e?.message ? String(e.message) : "Save failed");
@@ -189,15 +211,13 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
   function reset() {
     setAccent("#7C3AED");
-    setHexDraft("#7C3AED");
     setButtonStyle("pill");
     setAccentGlow(true);
+    setPayBtnAccent("none");
 
-    // NEW defaults
     setBgStyle("default");
     setBgColor("#0A0A0B");
     setBgColor2("#111114");
-    setPayBtnAccent("none");
 
     showToast("Reset");
   }
@@ -209,7 +229,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
           href={`/c/${cardId}`}
           className="mb-4 inline-block rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10"
         >
-          Return to Card
+          ← Return to Card
         </a>
 
         <div className="flex items-center justify-between gap-4">
@@ -228,28 +248,35 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         </div>
 
         {/* Live preview */}
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
-          <div className="text-xs tracking-[0.35em] text-white/45">LIVE PREVIEW</div>
+        <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+          <div className="p-5">
+            <div className="text-xs tracking-[0.35em] text-white/45">LIVE PREVIEW</div>
+          </div>
 
-          {/* Preview "card" surface */}
-          <div className="mt-4 rounded-2xl border border-white/10 p-5" style={previewBgStyle}>
-            <button
-              className={`w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
-              style={{
-                backgroundColor: accent,
-                color: lightAccent ? "#000000" : "#FFFFFF",
-              }}
-              onClick={() => showToast("Preview")}
-              type="button"
+          {/* background preview strip */}
+          <div className="px-5 pb-5">
+            <div
+              className="rounded-2xl border border-white/10 p-5"
+              style={backgroundPreviewStyle}
             >
-              Pay Through VIA
-            </button>
+              <button
+                className={`relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all ${payBtnRadius} ${payBtnGlow} ${payBtnAccentClass}`}
+                style={{
+                  backgroundColor: accent,
+                  color: lightAccent ? "#000000" : "#FFFFFF",
+                }}
+                onClick={() => showToast("Preview")}
+                type="button"
+              >
+                Pay Through VIA
+              </button>
 
-            {!isPremium && (
-              <div className="mt-3 text-sm text-white/60">
-                Customize is Premium-only. Upgrade to unlock.
-              </div>
-            )}
+              {!isPremium && (
+                <div className="mt-3 text-sm text-white/60">
+                  Customize is Premium-only. Upgrade to unlock.
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -257,78 +284,33 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         <div className="mt-6">
           <div className="mb-3 text-xs tracking-[0.35em] text-white/45">ACCENT COLOR</div>
 
-          {/* Presets */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* preset dots */}
+          <div className="flex flex-wrap gap-3">
             {PRESETS.map((p) => {
               const selected = accent.toUpperCase() === p.value.toUpperCase();
               return (
                 <button
                   key={p.value}
                   type="button"
-                  onClick={() => {
-                    setAccent(p.value);
-                    setHexDraft(p.value);
-                  }}
-                  className={`rounded-2xl border px-3 py-3 text-left transition-all ${
-                    selected
-                      ? "border-white/30 bg-white/10"
-                      : "border-white/10 bg-white/5 hover:bg-white/10"
+                  onClick={() => setAccent(p.value.toUpperCase())}
+                  className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition-all ${
+                    selected ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
                   }`}
+                  title={p.name}
                 >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="h-5 w-5 rounded-full border border-white/15"
-                      style={{ backgroundColor: p.value }}
-                    />
-                    <div className="text-xs font-medium text-white/85">{p.name}</div>
-                  </div>
-                  <div className="mt-2 text-[11px] text-white/45">{p.value}</div>
+                  <span
+                    className="h-4 w-4 rounded-full border border-white/15"
+                    style={{ backgroundColor: p.value }}
+                  />
+                  <span className="text-white/80">{p.name}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Color wheel + hex (synced) */}
+          {/* custom full width color bar */}
           <div className="mt-4">
-            <div className="text-sm font-semibold text-white/80">Custom</div>
-            <div className="mt-2 flex items-center gap-3">
-              <input
-                type="color"
-                value={accent}
-                onChange={(e) => {
-                  const v = normalizeHex(e.target.value) || accent;
-                  setAccent(v);
-                  setHexDraft(v);
-                }}
-                className="h-10 w-14 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0"
-                aria-label="Pick accent color"
-              />
-
-              <input
-                value={hexDraft}
-                onChange={(e) => setHexDraft(e.target.value)}
-                onBlur={() => {
-                  const n = normalizeHex(hexDraft);
-                  if (n) setAccent(n);
-                }}
-                placeholder="#7C3AED"
-                className="h-10 w-full rounded-xl border border-white/12 bg-black/30 px-3 text-sm text-white/85 outline-none focus:border-white/25"
-              />
-
-              <button
-                type="button"
-                onClick={() => {
-                  const n = normalizeHex(hexDraft);
-                  if (!n) return showToast("Invalid hex");
-                  setAccent(n);
-                  setHexDraft(n);
-                  showToast("Applied");
-                }}
-                className="h-10 rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-white/85 hover:bg-white/10"
-              >
-                Apply
-              </button>
-            </div>
+            <ColorBar label="Custom accent" value={accent} onChange={setAccent} />
           </div>
         </div>
 
@@ -336,73 +318,36 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         <div className="mt-6">
           <div className="mb-3 text-xs tracking-[0.35em] text-white/45">BACKGROUND</div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {(["default", "solid", "gradient"] as const).map((v) => (
+          <div className="flex gap-3">
+            {(["default", "solid", "gradient"] as const).map((k) => (
               <button
-                key={v}
+                key={k}
                 type="button"
-                onClick={() => setBgStyle(v)}
-                className={`rounded-2xl border px-3 py-3 text-sm transition-all ${
-                  bgStyle === v
-                    ? "border-white/30 bg-white/10"
-                    : "border-white/10 bg-white/5 hover:bg-white/10"
+                onClick={() => setBgStyle(k)}
+                className={`flex-1 rounded-2xl border px-4 py-3 text-sm capitalize ${
+                  bgStyle === k ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
                 }`}
               >
-                {v === "default" ? "Default" : v === "solid" ? "Solid" : "Gradient"}
+                {k}
               </button>
             ))}
           </div>
 
-          {(bgStyle === "solid" || bgStyle === "gradient") && (
-            <div className="mt-3 flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={bgColor}
-                  onChange={(e) => {
-                    const v = normalizeHex(e.target.value) || bgColor;
-                    setBgColor(v);
-                  }}
-                  className="h-10 w-14 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0"
-                  aria-label="Pick background color"
-                />
-                <input
-                  value={bgColor}
-                  onChange={(e) => {
-                    const v = normalizeHex(e.target.value) || "";
-                    setBgColor(v || bgColor);
-                  }}
-                  className="h-10 w-full rounded-xl border border-white/12 bg-black/30 px-3 text-sm text-white/85 outline-none focus:border-white/25"
-                />
-              </div>
+          <div className="mt-4 space-y-3">
+            {bgStyle === "solid" && (
+              <ColorBar label="Background color" value={bgColor} onChange={setBgColor} />
+            )}
 
-              {bgStyle === "gradient" && (
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={bgColor2}
-                    onChange={(e) => {
-                      const v = normalizeHex(e.target.value) || bgColor2;
-                      setBgColor2(v);
-                    }}
-                    className="h-10 w-14 cursor-pointer rounded-lg border border-white/15 bg-transparent p-0"
-                    aria-label="Pick background color 2"
-                  />
-                  <input
-                    value={bgColor2}
-                    onChange={(e) => {
-                      const v = normalizeHex(e.target.value) || "";
-                      setBgColor2(v || bgColor2);
-                    }}
-                    className="h-10 w-full rounded-xl border border-white/12 bg-black/30 px-3 text-sm text-white/85 outline-none focus:border-white/25"
-                  />
-                </div>
-              )}
-            </div>
-          )}
+            {bgStyle === "gradient" && (
+              <>
+                <ColorBar label="Gradient start" value={bgColor} onChange={setBgColor} />
+                <ColorBar label="Gradient end" value={bgColor2} onChange={setBgColor2} />
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Button style */}
+        {/* Button shape */}
         <div className="mt-6">
           <div className="mb-3 text-xs tracking-[0.35em] text-white/45">BUTTON SHAPE</div>
           <div className="flex gap-3">
@@ -410,9 +355,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
               type="button"
               onClick={() => setButtonStyle("pill")}
               className={`flex-1 rounded-2xl border px-4 py-3 text-sm ${
-                buttonStyle === "pill"
-                  ? "border-white/30 bg-white/10"
-                  : "border-white/10 bg-white/5 hover:bg-white/10"
+                buttonStyle === "pill" ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
               }`}
             >
               Pill
@@ -421,9 +364,7 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
               type="button"
               onClick={() => setButtonStyle("soft")}
               className={`flex-1 rounded-2xl border px-4 py-3 text-sm ${
-                buttonStyle === "soft"
-                  ? "border-white/30 bg-white/10"
-                  : "border-white/10 bg-white/5 hover:bg-white/10"
+                buttonStyle === "soft" ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
               }`}
             >
               Soft Square
@@ -434,19 +375,17 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
         {/* Pay button accent */}
         <div className="mt-6">
           <div className="mb-3 text-xs tracking-[0.35em] text-white/45">PAY BUTTON ACCENT</div>
-          <div className="grid grid-cols-3 gap-2">
-            {(["none", "outline", "shine"] as const).map((v) => (
+          <div className="flex gap-3">
+            {(["none", "outline", "shine"] as const).map((k) => (
               <button
-                key={v}
+                key={k}
                 type="button"
-                onClick={() => setPayBtnAccent(v)}
-                className={`rounded-2xl border px-3 py-3 text-sm transition-all ${
-                  payBtnAccent === v
-                    ? "border-white/30 bg-white/10"
-                    : "border-white/10 bg-white/5 hover:bg-white/10"
+                onClick={() => setPayBtnAccent(k)}
+                className={`flex-1 rounded-2xl border px-4 py-3 text-sm capitalize ${
+                  payBtnAccent === k ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
                 }`}
               >
-                {v === "none" ? "None" : v === "outline" ? "Outline" : "Shine"}
+                {k}
               </button>
             ))}
           </div>
