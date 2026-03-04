@@ -27,12 +27,18 @@ export default function OwnerGate({
       }
 
       try {
+        // optional: ensure they are signed in (fast)
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          router.push("/login");
+          return;
+        }
+
         const res = await fetch(`/api/card-is-owner?cardId=${encodeURIComponent(id)}`, {
           cache: "no-store",
         });
 
         if (!res.ok) {
-          // not signed in or error — send to login
           router.push("/login");
           return;
         }
