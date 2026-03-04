@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function OwnerGate({
   cardId,
@@ -11,56 +12,74 @@ export default function OwnerGate({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [isOwner, setIsOwner] = useState(false);
+  const [state, setState] = useState<"checking" | "ok" | "blocked">("checking");
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
     let cancelled = false;
 
-    async function check() {
+    async function run() {
+      const id = (cardId ?? "").trim().toUpperCase();
+      if (!id) {
+        setState("blocked");
+        setMsg("Missing card id.");
+        return;
+      }
+
       try {
-        const res = await fetch(
-          `/api/card-is-owner?cardId=${encodeURIComponent(cardId)}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/card-is-owner?cardId=${encodeURIComponent(id)}`, {
+          cache: "no-store",
+        });
 
         if (!res.ok) {
-          router.replace(`/c/${cardId}`);
+          // not signed in or error — send to login
+          router.push("/login");
           return;
         }
 
-        const data = await res.json();
+        const j = await res.json();
+        if (cancelled) return;
 
-        if (!cancelled) {
-          if (!data.isOwner) {
-            router.replace(`/c/${cardId}`);
-            return;
-          }
-
-          setIsOwner(true);
-          setLoading(false);
+        if (!j?.isOwner) {
+          setState("blocked");
+          setMsg("Owner-only page.");
+          return;
         }
+
+        setState("ok");
       } catch {
-        router.replace(`/c/${cardId}`);
+        if (!cancelled) {
+          setState("blocked");
+          setMsg("Could not verify ownership.");
+        }
       }
     }
 
-    check();
-
+    run();
     return () => {
       cancelled = true;
     };
   }, [cardId, router]);
 
-  if (loading) {
+  if (state === "checking") {
     return (
-      <div className="flex items-center justify-center py-16 text-white/50">
-        Checking permissions…
+      <div className="min-h-screen bg-[#0A0A0B] text-white p-8">
+        <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-[#121214]/70 p-6 backdrop-blur-xl">
+          <div className="text-sm text-white/60">Checking access…</div>
+        </div>
       </div>
     );
   }
 
-  if (!isOwner) return null;
+  if (state === "blocked") {
+    return (
+      <div className="min-h-screen bg-[#0A0A0B] text-white p-8">
+        <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-[#121214]/70 p-6 backdrop-blur-xl">
+          <div className="text-sm text-white/70">{msg || "Access denied."}</div>
+        </div>
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }
