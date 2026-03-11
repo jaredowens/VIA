@@ -23,7 +23,10 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     if (error || !card || !card.stripe_account_id) {
-      return NextResponse.json({ error: "Card or Stripe account not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Card or Stripe account not found" },
+        { status: 404 }
+      );
     }
 
     const domains = await stripe.paymentMethodDomains.list(
