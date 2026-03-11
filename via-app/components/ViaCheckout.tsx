@@ -14,6 +14,7 @@ export default function ViaCheckout({ amount }: { amount: number }) {
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [availableMethodsText, setAvailableMethodsText] = useState("");
 
   async function confirmNow() {
     if (!stripe || !elements) return;
@@ -47,39 +48,45 @@ export default function ViaCheckout({ amount }: { amount: number }) {
           FAST PAY
         </div>
 
-       <ExpressCheckoutElement
-  onReady={(event: any) => {
-    console.log("ExpressCheckout ready", event);
-    console.log("availablePaymentMethods", event?.availablePaymentMethods);
-  }}
-  onConfirm={async () => {
-    await confirmNow();
-  }}
-  options={{
-    buttonHeight: 50,
-  }}
-/>
+        <ExpressCheckoutElement
+          onReady={(event: any) => {
+            const methods = event?.availablePaymentMethods ?? null;
+            setAvailableMethodsText(JSON.stringify(methods));
+          }}
+          onConfirm={async () => {
+            await confirmNow();
+          }}
+          options={{
+            buttonHeight: 50,
+          }}
+        />
       </div>
 
-     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-  <div className="mb-2 text-xs tracking-[0.25em] text-white/45">
-    CARD OR OTHER METHODS
-  </div>
+      {availableMethodsText ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/70 break-all">
+          availablePaymentMethods: {availableMethodsText}
+        </div>
+      ) : null}
 
-  <div className="min-h-[320px] overflow-visible">
-    <PaymentElement
-      options={{
-        layout: {
-          type: "accordion",
-          defaultCollapsed: true,
-          radios: true,
-          spacedAccordionItems: true,
-          visibleAccordionItemsCount: 5,
-        },
-      }}
-    />
-  </div>
-</div>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+        <div className="mb-2 text-xs tracking-[0.25em] text-white/45">
+          CARD OR OTHER METHODS
+        </div>
+
+        <div className="min-h-[320px] overflow-visible">
+          <PaymentElement
+            options={{
+              layout: {
+                type: "accordion",
+                defaultCollapsed: true,
+                radios: true,
+                spacedAccordionItems: true,
+                visibleAccordionItemsCount: 5,
+              },
+            }}
+          />
+        </div>
+      </div>
 
       <div className="text-sm text-white/60">Total: ${amount.toFixed(2)}</div>
 
