@@ -44,11 +44,19 @@ export default function ViaCheckout({ amount }: { amount: number }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
         <div className="mb-2 text-xs tracking-[0.25em] text-white/45">FAST PAY</div>
-        <ExpressCheckoutElement
-          onConfirm={async () => {
-            await confirmNow();
-          }}
-        />
+        
+         <ExpressCheckoutElement
+  onConfirm={async () => {
+    await confirmNow();
+  }}
+  options={{
+    buttonHeight: 50,
+    paymentMethods: {
+      applePay: "always",
+      googlePay: "always",
+    },
+  }}
+/>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
