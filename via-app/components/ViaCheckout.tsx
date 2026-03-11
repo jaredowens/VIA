@@ -31,6 +31,30 @@ export default function ViaCheckout() {
 
     if (error) {
       setErrorMessage(error.message ?? "Payment failed.");
+      setSubmitting(false);
+      return;
+    }
+
+    setSubmitting(false);
+  }
+
+  async function handleExpressConfirm() {
+    if (!stripe || !elements) return;
+
+    setSubmitting(true);
+    setErrorMessage("");
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: window.location.href,
+      },
+    });
+
+    if (error) {
+      setErrorMessage(error.message ?? "Payment failed.");
+      setSubmitting(false);
+      return;
     }
 
     setSubmitting(false);
@@ -38,11 +62,13 @@ export default function ViaCheckout() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <ExpressCheckoutElement />
+      <ExpressCheckoutElement onConfirm={handleExpressConfirm} />
       <PaymentElement />
+
       {errorMessage ? (
         <div className="text-sm text-red-400">{errorMessage}</div>
       ) : null}
+
       <button
         type="submit"
         disabled={!stripe || !elements || submitting}
