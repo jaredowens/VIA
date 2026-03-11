@@ -91,6 +91,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       clientSecret: paymentIntent.client_secret,
+      stripeAccountId: card.stripe_account_id,
     });
   } catch (error: any) {
     console.error("create-payment-intent error", error);

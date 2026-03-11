@@ -19,11 +19,13 @@ export default function PaymentModal({
 }: Props) {
   const [amount, setAmount] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [stripeAccountId, setStripeAccountId] = useState("");
   const [loadingIntent, setLoadingIntent] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const parsedAmount = useMemo(() => {
-    const n = Number(amount);
+    const cleaned = amount.replace(/[^\d.]/g, "");
+    const n = Number(cleaned);
     return Number.isFinite(n) ? n : 0;
   }, [amount]);
 
@@ -31,6 +33,7 @@ export default function PaymentModal({
     if (!open) {
       setAmount("");
       setClientSecret("");
+      setStripeAccountId("");
       setLoadingIntent(false);
       setErrorMessage("");
     }
@@ -41,6 +44,7 @@ export default function PaymentModal({
   async function startCheckout() {
     setErrorMessage("");
     setClientSecret("");
+    setStripeAccountId("");
 
     if (!parsedAmount || parsedAmount <= 0) {
       setErrorMessage("Enter a valid amount.");
@@ -69,6 +73,7 @@ export default function PaymentModal({
       }
 
       setClientSecret(data.clientSecret);
+      setStripeAccountId(data.stripeAccountId);
     } catch {
       setErrorMessage("Network error. Please try again.");
     } finally {
@@ -89,8 +94,12 @@ export default function PaymentModal({
       >
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <div className="text-xs tracking-[0.35em] text-white/45">PAY THROUGH VIA</div>
-            <div className="mt-1 text-lg font-semibold text-white">Enter amount</div>
+            <div className="text-xs tracking-[0.35em] text-white/45">
+              PAY THROUGH VIA
+            </div>
+            <div className="mt-1 text-lg font-semibold text-white">
+              Enter amount
+            </div>
           </div>
 
           <button
@@ -105,11 +114,15 @@ export default function PaymentModal({
         {!clientSecret ? (
           <div className="space-y-4">
             <div>
-              <label className="mb-2 block text-sm text-white/70">Amount</label>
+              <label className="mb-2 block text-sm text-white/70">
+                Amount
+              </label>
+
               <div className="relative">
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/45">
                   $
                 </span>
+
                 <input
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -118,7 +131,10 @@ export default function PaymentModal({
                   className="w-full rounded-2xl border border-white/12 bg-white/5 py-4 pl-8 pr-4 text-white outline-none placeholder:text-white/30 focus:border-white/25"
                 />
               </div>
-              <p className="mt-2 text-xs text-white/40">Minimum payment: $0.50</p>
+
+              <p className="mt-2 text-xs text-white/40">
+                Minimum payment: $0.50
+              </p>
             </div>
 
             {errorMessage ? (
@@ -141,7 +157,10 @@ export default function PaymentModal({
             </button>
           </div>
         ) : (
-          <StripeProvider clientSecret={clientSecret}>
+          <StripeProvider
+            clientSecret={clientSecret}
+            stripeAccountId={stripeAccountId}
+          >
             <ViaCheckout amount={parsedAmount} />
           </StripeProvider>
         )}
