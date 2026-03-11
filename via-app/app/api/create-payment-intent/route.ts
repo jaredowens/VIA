@@ -72,6 +72,11 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("AB12 payment route", {
+  cardId,
+  stripeAccountId: card.stripe_account_id,
+});
+
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount,

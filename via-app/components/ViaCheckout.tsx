@@ -66,7 +66,7 @@ export default function ViaCheckout({ amount }: { amount: number }) {
     CARD OR OTHER METHODS
   </div>
 
-  <div className="min-h-[260px]">
+  <div className="min-h-[320px] overflow-visible">
     <PaymentElement
       options={{
         layout: {
@@ -74,6 +74,7 @@ export default function ViaCheckout({ amount }: { amount: number }) {
           defaultCollapsed: true,
           radios: true,
           spacedAccordionItems: true,
+          visibleAccordionItemsCount: 5,
         },
       }}
     />
