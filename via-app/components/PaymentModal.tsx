@@ -144,17 +144,13 @@ export default function PaymentModal({
             ) : null}
 
             <button
-              onClick={startCheckout}
-              disabled={loadingIntent}
-              type="button"
-              className="w-full rounded-2xl px-4 py-4 font-semibold transition disabled:opacity-60"
-              style={{
-                backgroundColor: accentColor || "#7C3AED",
-                color: "#FFFFFF",
-              }}
-            >
-              {loadingIntent ? "Starting payment..." : "Continue to payment"}
-            </button>
+  onClick={startCheckout}
+  disabled={loadingIntent}
+  type="button"
+  className="w-full rounded-2xl bg-white px-4 py-4 font-semibold text-black transition disabled:opacity-60"
+>
+  {loadingIntent ? "Starting payment..." : "Continue to payment"}
+</button>
           </div>
         ) : (
           <StripeProvider
