@@ -16,6 +16,7 @@ function isLightColor(hex: string) {
   return brightness > 160;
 }
 
+
 type Payload = {
   cardId: string;
   isPremium?: boolean;
@@ -28,6 +29,10 @@ type Payload = {
   bgColor?: string | null;
   bgColor2?: string | null;
   payBtnAccent?: "none" | "outline" | "shine";
+
+  stripeAccountId?: string | null;
+  stripeConnected?: boolean;
+  viaPaymentsEnabled?: boolean;
 };
 
 const PRESETS = [
@@ -110,6 +115,11 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
 
   const [isPremium, setIsPremium] = useState(false);
 
+   const [stripeConnected, setStripeConnected] = useState(false);
+  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
+  const [viaPaymentsEnabled, setViaPaymentsEnabled] = useState(false);
+  const [stripeLoading, setStripeLoading] = useState(false);
+
   // Accent / premium button
   const [accent, setAccent] = useState("#7C3AED");
   const [buttonStyle, setButtonStyle] = useState<"pill" | "soft">("pill");
@@ -130,43 +140,109 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
     setTimeout(() => setToast(""), 1400);
   }
 
-  // load current settings
-  useEffect(() => {
-    let cancelled = false;
+  async function connectStripe() {
+  if (!isPremium) {
+    showToast("Premium required");
+    return;
+  }
 
-    async function load() {
-      try {
-        setLoading(true);
-        const res = await fetch(`/api/card-public?cardId=${encodeURIComponent(cardId)}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error("load failed");
-        const data = (await res.json()) as Payload;
-        if (cancelled) return;
+  try {
+    setStripeLoading(true);
 
-        setAccent(cleanHex((data.accentColor ?? "#7C3AED").trim(), "#7C3AED"));
-        setButtonStyle((data.buttonStyle ?? "pill") as "pill" | "soft");
-        setAccentGlow(data.accentGlow ?? true);
-        setPayBtnAccent((data.payBtnAccent ?? "none") as "none" | "outline" | "shine");
+    const res = await fetch("/api/stripe/connect", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ cardId }),
+    });
 
-        const bs = (data.bgStyle ?? "default") as "default" | "solid" | "gradient";
-        setBgStyle(bs);
-        setBgColor(cleanHex(data.bgColor ?? "#0A0A0B", "#0A0A0B"));
-        setBgColor2(cleanHex(data.bgColor2 ?? "#111114", "#111114"));
+    const data = await res.json();
 
-        setIsPremium(Boolean(data.isPremium));
-      } catch {
-        if (!cancelled) showToast("Could not load");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    if (!res.ok) {
+      throw new Error(data?.error || "Failed to connect Stripe");
     }
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [cardId]);
+    if (!data?.url) {
+      throw new Error("Stripe onboarding link missing");
+    }
+
+    window.location.href = data.url;
+  } catch (e: any) {
+    showToast(e?.message ?? "Stripe connect failed");
+  } finally {
+    setStripeLoading(false);
+  }
+}
+
+async function refreshStripeStatus() {
+  try {
+    setStripeLoading(true);
+
+    const res = await fetch("/api/stripe/status", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ cardId }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data?.error || "Failed to refresh Stripe");
+    }
+
+    setStripeConnected(Boolean(data.connected));
+    showToast(data.connected ? "Stripe connected" : "Stripe setup incomplete");
+  } catch (e: any) {
+    showToast(e?.message ?? "Could not refresh Stripe");
+  } finally {
+    setStripeLoading(false);
+  }
+}
+
+  // load current settings
+ useEffect(() => {
+  let cancelled = false;
+
+  async function load() {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/card-public?cardId=${encodeURIComponent(cardId)}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("load failed");
+
+      const data = (await res.json()) as Payload;
+      if (cancelled) return;
+
+      setAccent(cleanHex((data.accentColor ?? "#7C3AED").trim(), "#7C3AED"));
+      setButtonStyle((data.buttonStyle ?? "pill") as "pill" | "soft");
+      setAccentGlow(data.accentGlow ?? true);
+      setPayBtnAccent((data.payBtnAccent ?? "none") as "none" | "outline" | "shine");
+
+      const bs = (data.bgStyle ?? "default") as "default" | "solid" | "gradient";
+      setBgStyle(bs);
+      setBgColor(cleanHex(data.bgColor ?? "#0A0A0B", "#0A0A0B"));
+      setBgColor2(cleanHex(data.bgColor2 ?? "#111114", "#111114"));
+
+      setIsPremium(Boolean(data.isPremium));
+      setStripeConnected(Boolean(data.stripeConnected));
+      setStripeAccountId(data.stripeAccountId ?? null);
+      setViaPaymentsEnabled(Boolean(data.viaPaymentsEnabled));
+    } catch {
+      if (!cancelled) showToast("Could not load");
+    } finally {
+      if (!cancelled) setLoading(false);
+    }
+  }
+
+  load();
+  return () => {
+    cancelled = true;
+  };
+}, [cardId]);
 
   const payBtnRadius = buttonStyle === "soft" ? "rounded-2xl" : "rounded-full";
   const payBtnGlow = accentGlow
@@ -236,6 +312,8 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
           bg_color: bgStyle === "default" ? null : cleanHex(bgColor, "#0A0A0B"),
           bg_color_2: bgStyle === "gradient" ? cleanHex(bgColor2, "#111114") : null,
 
+          via_payments_enabled: viaPaymentsEnabled,
+        
           pay_btn_accent: payBtnAccent,
         })
         .eq("id", cardId);
@@ -426,6 +504,80 @@ export default function CustomizeClient({ cardId }: { cardId: string }) {
             </button>
           </div>
         </Section>
+
+        <div className="mt-8 h-px bg-white/10" />
+
+<Section
+  title="PAYMENTS"
+  subtitle="Connect your Stripe account and control whether Pay Through VIA appears on your card."
+>
+  <div className={`rounded-2xl border px-4 py-4 ${glassCardSoft}`}>
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <div className="text-sm font-medium text-white/90">Stripe account</div>
+        <div className="text-xs text-white/60">
+          {stripeConnected
+            ? "Connected and ready to accept payments."
+            : stripeAccountId
+              ? "Stripe started, but setup may still be incomplete."
+              : "No Stripe account connected yet."}
+        </div>
+      </div>
+
+      <div className="text-xs rounded-full border border-white/12 px-3 py-1 text-white/75">
+        {stripeConnected ? "Connected" : "Not connected"}
+      </div>
+    </div>
+
+    <div className="mt-4 flex flex-col gap-3 md:flex-row">
+      <button
+        type="button"
+        onClick={connectStripe}
+        disabled={!isPremium || stripeLoading}
+        className={`${bottomBtnBase} ${bottomBtnGlass} w-full md:w-auto disabled:opacity-50`}
+      >
+        {stripeLoading
+          ? "Loading..."
+          : stripeConnected
+            ? "Manage Stripe"
+            : "Connect Stripe"}
+      </button>
+
+      <button
+        type="button"
+        onClick={refreshStripeStatus}
+        disabled={!isPremium || stripeLoading || !stripeAccountId}
+        className={`${bottomBtnBase} ${bottomBtnGlass} w-full md:w-auto disabled:opacity-50`}
+      >
+        Refresh status
+      </button>
+    </div>
+  </div>
+
+  <div className={`rounded-2xl border px-4 py-4 ${glassCardSoft}`}>
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <div className="text-sm font-medium text-white/90">Show Pay Through VIA</div>
+        <div className="text-xs text-white/60">
+          This only appears on the public card after Stripe is connected.
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setViaPaymentsEnabled((v) => !v)}
+        disabled={!isPremium || !stripeConnected}
+        className={`${bottomBtnBase} w-full md:w-auto ${
+          viaPaymentsEnabled
+            ? "border border-white/20 bg-white/12 text-white/90"
+            : "border border-white/12 bg-black/30 text-white/75 hover:bg-black/40"
+        } disabled:opacity-50`}
+      >
+        {viaPaymentsEnabled ? "On" : "Off"}
+      </button>
+    </div>
+  </div>
+</Section>
 
         <div className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <button type="button" onClick={reset} className={`${bottomBtnBase} w-full md:w-auto ${bottomBtnGlass}`}>

@@ -181,32 +181,33 @@ export async function GET(req: Request) {
     );
 
     const { data, error } = await supabase
-      .from("cards")
-      .select(
-        `
-        id,
-        owner_user_id,
-        display_name,
-        bio,
-        photo_url,
-        pay_label,
-        payments_json,
-        show_phone,
-        show_email,
-        show_save_contact,
-        is_premium,
-        accent_color,
-        premium_verified,
-        button_style,
-        accent_glow,
-        bg_style,
-bg_color,
-bg_color_2,
-pay_btn_accent
-      `
-      )
-      .eq("id", cardId)
-      .maybeSingle();
+  .from("cards")
+  .select(`
+    id,
+    owner_user_id,
+    display_name,
+    bio,
+    photo_url,
+    pay_label,
+    payments_json,
+    show_phone,
+    show_email,
+    show_save_contact,
+    is_premium,
+    accent_color,
+    premium_verified,
+    button_style,
+    accent_glow,
+    bg_style,
+    bg_color,
+    bg_color_2,
+    pay_btn_accent,
+    stripe_account_id,
+    stripe_connected,
+    via_payments_enabled
+  `)
+  .eq("id", cardId)
+  .maybeSingle();
 
     if (error) {
       console.error("card-public supabase error:", error);
@@ -236,6 +237,15 @@ const bgColor = typeof (data as any).bg_color === "string" ? (data as any).bg_co
 const bgColor2 = typeof (data as any).bg_color_2 === "string" ? (data as any).bg_color_2 : null;
 const payBtnAccent = (data as any).pay_btn_accent ?? "none";
 
+const stripeAccountId =
+  typeof (data as any).stripe_account_id === "string"
+    ? (data as any).stripe_account_id
+    : null;
+
+const stripeConnected = Boolean((data as any).stripe_connected);
+const viaPaymentsEnabled = Boolean((data as any).via_payments_enabled);
+
+
     return NextResponse.json({
       cardId: data.id,
       displayName: (data as any).display_name ?? null,
@@ -260,6 +270,10 @@ payBtnAccent,
 
       buttonStyle: (data as any).button_style ?? "pill",
       accentGlow: (data as any).accent_glow ?? true,
+
+      stripeAccountId,
+  stripeConnected,
+  viaPaymentsEnabled,
     });
   } catch (err) {
     console.error("Card public route crash:", err);

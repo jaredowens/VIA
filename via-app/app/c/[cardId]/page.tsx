@@ -39,6 +39,10 @@ type PublicCardPayload = {
   bgColor2?: string | null;
   payBtnAccent?: "none" | "outline" | "shine";
 
+    stripeAccountId?: string | null;
+  stripeConnected?: boolean;
+  viaPaymentsEnabled?: boolean;
+
   payments: {
     phone: string | null;
     email: string | null;
@@ -365,6 +369,14 @@ export default function CardPage() {
 
   const isPremium = Boolean(card?.isPremium);
   const verified = Boolean(card?.verified);
+
+  const stripeConnected = Boolean(card?.stripeConnected);
+const viaPaymentsEnabled = Boolean(card?.viaPaymentsEnabled);
+
+const canShowViaPayButton =
+  isPremium && stripeConnected && viaPaymentsEnabled;
+
+
   const accent = (card?.accentColor ?? "#7C3AED").trim();
 
   const lightAccent = isLightColor(accent);
@@ -559,34 +571,43 @@ export default function CardPage() {
 
                 {/* Premium modules (home screen) */}
                 <div className="mt-3">
-                  {isPremium ? (
-                    <button
-                      onClick={() => {
-                        track("pay_click");
-                        showToast("Pay Through VIA coming soon");
-                      }}
-                      className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
-                      style={{
-                        backgroundColor: accent,
-                        color: lightAccent ? "#000000" : "#FFFFFF",
-                      }}
-                      type="button"
-                    >
-                      Pay Through VIA
-                    </button>
-                  ) : ownerCheck.isOwner ? (
-                    // not premium: show locked tile ONLY to owner
-                    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-white/60" />
-                        Pay Through VIA
-                      </span>
-                      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
-                        Locked
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
+  {canShowViaPayButton ? (
+    <button
+      onClick={() => {
+        track("pay_click");
+        showToast("Stripe payment modal next");
+      }}
+      className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
+      style={{
+        backgroundColor: accent,
+        color: lightAccent ? "#000000" : "#FFFFFF",
+      }}
+      type="button"
+    >
+      Pay Through VIA
+    </button>
+  ) : ownerCheck.isOwner && isPremium ? (
+    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+      <span className="flex items-center gap-2">
+        <Lock className="h-4 w-4 text-white/60" />
+        Pay Through VIA
+      </span>
+      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+        {stripeConnected ? "Turn on in Customize" : "Connect Stripe"}
+      </span>
+    </div>
+  ) : ownerCheck.isOwner ? (
+    <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-4 text-sm text-white/80 flex items-center justify-between">
+      <span className="flex items-center gap-2">
+        <Lock className="h-4 w-4 text-white/60" />
+        Pay Through VIA
+      </span>
+      <span className="text-[11px] rounded-full border border-white/15 px-2 py-1 text-white/60">
+        Locked
+      </span>
+    </div>
+  ) : null}
+</div>
 
                 <div className="mt-10 space-y-4">
                   <div className="text-xs tracking-[0.35em] text-white/45 mb-2">PAYMENTS</div>
