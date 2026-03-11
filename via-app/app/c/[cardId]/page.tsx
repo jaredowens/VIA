@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import PaymentModal from "@/components/PaymentModal";
 import { Mail, Phone, Globe, BadgeCheck, Lock } from "lucide-react";
 import {
   siVenmo,
@@ -247,6 +248,8 @@ export default function CardPage() {
   const [status, setStatus] = useState<ViewStatus>("checking");
   const [message, setMessage] = useState("");
   const [card, setCard] = useState<PublicCardPayload | null>(null);
+
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const [ownerCheck, setOwnerCheck] = useState({ loading: true, signedIn: false, isOwner: false });
   const [savingContact, setSavingContact] = useState(false);
@@ -572,11 +575,11 @@ const canShowViaPayButton =
                 {/* Premium modules (home screen) */}
                 <div className="mt-3">
   {canShowViaPayButton ? (
-    <button
-      onClick={() => {
-        track("pay_click");
-        showToast("Stripe payment modal next");
-      }}
+   <button
+  onClick={() => {
+    track("pay_click");
+    setPaymentModalOpen(true);
+  }}
       className={`group relative w-full overflow-hidden border border-white/12 px-4 py-4 font-semibold tracking-wide transition-all duration-200 hover:-translate-y-[1px] hover:border-white/20 ${payBtnRadius} ${payBtnGlow}`}
       style={{
         backgroundColor: accent,
@@ -888,6 +891,13 @@ const canShowViaPayButton =
           </div>
         </div>
       )}
+
+      <PaymentModal
+  open={paymentModalOpen}
+  onClose={() => setPaymentModalOpen(false)}
+  cardId={cid}
+  accentColor={accent}
+/>
 
       {toast && (
         <div className="fixed left-1/2 top-6 z-[100] -translate-x-1/2 rounded-full border border-white/15 bg-black/70 px-4 py-2 text-sm text-white/90 backdrop-blur">
