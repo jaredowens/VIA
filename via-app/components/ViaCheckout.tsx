@@ -41,32 +41,44 @@ export default function ViaCheckout({ amount }: { amount: number }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4 pb-2">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-        <div className="mb-2 text-xs tracking-[0.25em] text-white/45">FAST PAY</div>
-        
-         <ExpressCheckoutElement
-  onConfirm={async () => {
-    await confirmNow();
-  }}
-  options={{
-    buttonHeight: 50,
-    paymentMethods: {
-      applePay: "always",
-      googlePay: "always",
-    },
-  }}
-/>
+        <div className="mb-2 text-xs tracking-[0.25em] text-white/45">
+          FAST PAY
+        </div>
+
+        <ExpressCheckoutElement
+          onConfirm={async () => {
+            await confirmNow();
+          }}
+          options={{
+            buttonHeight: 50,
+            paymentMethods: {
+              applePay: "always",
+              googlePay: "always",
+            },
+          }}
+        />
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-        <div className="mb-2 text-xs tracking-[0.25em] text-white/45">CARD OR OTHER METHODS</div>
-        <PaymentElement />
+        <div className="mb-2 text-xs tracking-[0.25em] text-white/45">
+          CARD OR OTHER METHODS
+        </div>
+
+        <div className="min-h-[260px]">
+          <PaymentElement
+            options={{
+              layout: {
+                type: "tabs",
+                defaultCollapsed: false,
+              },
+            }}
+          />
+        </div>
       </div>
 
-      <div className="text-sm text-white/60">
-        Total: ${amount.toFixed(2)}
-      </div>
+      <div className="text-sm text-white/60">Total: ${amount.toFixed(2)}</div>
 
       {errorMessage ? (
         <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">

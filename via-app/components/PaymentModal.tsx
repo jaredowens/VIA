@@ -15,7 +15,6 @@ export default function PaymentModal({
   open,
   onClose,
   cardId,
-  accentColor,
 }: Props) {
   const [amount, setAmount] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -83,16 +82,16 @@ export default function PaymentModal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-3 sm:items-center"
+      className="fixed inset-0 z-[120] flex items-end justify-center overflow-y-auto bg-black/70 p-3 sm:items-center"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#121214]/95 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.75)] backdrop-blur-xl"
+        className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[28px] border border-white/10 bg-[#121214]/95 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.75)] backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between sticky top-0 z-10 bg-[#121214]/95 pb-3">
           <div>
             <div className="text-xs tracking-[0.35em] text-white/45">
               PAY THROUGH VIA
@@ -144,13 +143,13 @@ export default function PaymentModal({
             ) : null}
 
             <button
-  onClick={startCheckout}
-  disabled={loadingIntent}
-  type="button"
-  className="w-full rounded-2xl bg-white px-4 py-4 font-semibold text-black transition disabled:opacity-60"
->
-  {loadingIntent ? "Starting payment..." : "Continue to payment"}
-</button>
+              onClick={startCheckout}
+              disabled={loadingIntent}
+              type="button"
+              className="w-full rounded-2xl bg-white px-4 py-4 font-semibold text-black transition disabled:opacity-60"
+            >
+              {loadingIntent ? "Starting payment..." : "Continue to payment"}
+            </button>
           </div>
         ) : (
           <StripeProvider
