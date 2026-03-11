@@ -47,18 +47,18 @@ export default function ViaCheckout({ amount }: { amount: number }) {
           FAST PAY
         </div>
 
-        <ExpressCheckoutElement
-          onConfirm={async () => {
-            await confirmNow();
-          }}
-          options={{
-            buttonHeight: 50,
-            paymentMethods: {
-              applePay: "always",
-              googlePay: "always",
-            },
-          }}
-        />
+       <ExpressCheckoutElement
+  onReady={(event: any) => {
+    console.log("ExpressCheckout ready", event);
+    console.log("availablePaymentMethods", event?.availablePaymentMethods);
+  }}
+  onConfirm={async () => {
+    await confirmNow();
+  }}
+  options={{
+    buttonHeight: 50,
+  }}
+/>
       </div>
 
      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
