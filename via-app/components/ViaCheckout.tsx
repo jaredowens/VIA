@@ -61,22 +61,24 @@ export default function ViaCheckout({ amount }: { amount: number }) {
         />
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-        <div className="mb-2 text-xs tracking-[0.25em] text-white/45">
-          CARD OR OTHER METHODS
-        </div>
+     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+  <div className="mb-2 text-xs tracking-[0.25em] text-white/45">
+    CARD OR OTHER METHODS
+  </div>
 
-        <div className="min-h-[260px]">
-          <PaymentElement
-            options={{
-              layout: {
-                type: "tabs",
-                defaultCollapsed: false,
-              },
-            }}
-          />
-        </div>
-      </div>
+  <div className="min-h-[260px]">
+    <PaymentElement
+      options={{
+        layout: {
+          type: "accordion",
+          defaultCollapsed: true,
+          radios: true,
+          spacedAccordionItems: true,
+        },
+      }}
+    />
+  </div>
+</div>
 
       <div className="text-sm text-white/60">Total: ${amount.toFixed(2)}</div>
 
