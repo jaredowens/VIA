@@ -8,13 +8,17 @@ import {
   useStripe,
 } from "@stripe/react-stripe-js";
 
-export default function ViaCheckout({ amount }: { amount: number }) {
+type Props = {
+  amount: number;
+  cardId: string;
+};
+
+export default function ViaCheckout({ amount, cardId }: Props) {
   const stripe = useStripe();
   const elements = useElements();
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [availableMethodsText, setAvailableMethodsText] = useState("");
 
   async function confirmNow() {
     if (!stripe || !elements) return;
@@ -25,7 +29,7 @@ export default function ViaCheckout({ amount }: { amount: number }) {
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.href,
+        return_url: `${window.location.origin}/c/${cardId}?paid=1`,
       },
     });
 
@@ -49,10 +53,6 @@ export default function ViaCheckout({ amount }: { amount: number }) {
         </div>
 
         <ExpressCheckoutElement
-          onReady={(event: any) => {
-            const methods = event?.availablePaymentMethods ?? null;
-            setAvailableMethodsText(JSON.stringify(methods));
-          }}
           onConfirm={async () => {
             await confirmNow();
           }}
@@ -61,12 +61,6 @@ export default function ViaCheckout({ amount }: { amount: number }) {
           }}
         />
       </div>
-
-      {availableMethodsText ? (
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/70 break-all">
-          availablePaymentMethods: {availableMethodsText}
-        </div>
-      ) : null}
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
         <div className="mb-2 text-xs tracking-[0.25em] text-white/45">

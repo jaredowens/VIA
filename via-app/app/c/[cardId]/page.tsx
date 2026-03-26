@@ -809,7 +809,7 @@ const canShowViaPayButton =
                     </>
                   )}
 
-                  {/* Upgrade to Premium (BOTTOM, OWNER ONLY) */}
+                                   {/* Upgrade to Premium (BOTTOM, OWNER ONLY) */}
                   {ownerCheck.isOwner && !isPremium && (
                     <button
                       onClick={() => showToast("Upgrade coming soon")}
@@ -821,15 +821,34 @@ const canShowViaPayButton =
                   )}
                 </div>
 
-                {!!message && <p className="mt-6 text-center text-sm text-white/55">{message}</p>}
+                {!!message && (
+                  <p className="mt-6 text-center text-sm text-white/55">
+                    {message}
+                  </p>
+                )}
               </>
             )}
           </div>
 
-          <p className="mt-6 text-center text-[11px] tracking-widest text-white/30">VIA · Tap to pay</p>
+          <div className="mt-6 space-y-3 text-center">
+            <p className="text-[11px] tracking-widest text-white/30">
+              VIA · Tap to pay
+            </p>
+
+            {!ownerCheck.loading && !ownerCheck.signedIn ? (
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = `/login?returnTo=/c/${cid}`;
+                }}
+                className="text-xs text-white/50 underline underline-offset-4 hover:text-white/80"
+              >
+                Are you this card’s owner? Sign in
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
-
       {ownerMenuOpen && ownerCheck.isOwner && (
         <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true">
           {/* backdrop */}
@@ -851,43 +870,91 @@ const canShowViaPayButton =
             </div>
 
             <div className="space-y-2">
-              <a
-                href={`/c/${cid}/settings/profile`}
-                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-              >
-                Profile Settings
-              </a>
+  <a
+    href={`/c/${cid}/settings/profile`}
+    className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+  >
+    Profile Settings
+  </a>
 
-              <a
-                href={`/c/${cid}/customize`}
-                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-              >
-                Customize
-              </a>
+  <a
+    href={`/c/${cid}/customize`}
+    className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+  >
+    Customize
+  </a>
 
-              <a
-                href={`/c/${cid}/analytics`}
-                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-              >
-                Analytics
-              </a>
+  <a
+    href={`/c/${cid}/analytics`}
+    className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+  >
+    Analytics
+  </a>
 
-              <div className="my-3 h-px bg-white/10" />
+  <div className="my-3 h-px bg-white/10" />
 
-              <a
-                href={`/setup/${cid}/edit/personal`}
-                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-              >
-                Personal Info
-              </a>
+  <a
+    href={`/setup/${cid}/edit/personal`}
+    className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+  >
+    Personal Info
+  </a>
 
-              <a
-                href={`/setup/${cid}/edit/links`}
-                className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
-              >
-                Payment & Links
-              </a>
-            </div>
+  <a
+    href={`/setup/${cid}/edit/links`}
+    className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/5"
+  >
+    Payment & Links
+  </a>
+
+  <div className="my-3 h-px bg-white/10" />
+
+  <button
+    type="button"
+    onClick={async () => {
+      const confirmReset = window.confirm(
+        "Are you sure you want to unclaim this card? This will reset all data."
+      );
+      if (!confirmReset) return;
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          window.alert("You must be logged in.");
+          return;
+        }
+
+        const res = await fetch("/api/unclaim-card", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cardId: cid,
+            userId: user.id,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          window.alert(data?.error || "Failed to unclaim.");
+          return;
+        }
+
+        window.location.href = `/claim/${cid}`;
+      } catch {
+        window.alert("Something went wrong.");
+      }
+    }}
+    className="block w-full rounded-xl px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10"
+  >
+    Unclaim Card
+  </button>
+</div>
           </div>
         </div>
       )}

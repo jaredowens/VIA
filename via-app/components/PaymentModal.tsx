@@ -91,7 +91,7 @@ export default function PaymentModal({
         className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-[28px] border border-white/10 bg-[#121214]/95 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.75)] backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between sticky top-0 z-10 bg-[#121214]/95 pb-3">
+        <div className="sticky top-0 z-10 mb-4 flex items-center justify-between bg-[#121214]/95 pb-3">
           <div>
             <div className="text-xs tracking-[0.35em] text-white/45">
               PAY THROUGH VIA
@@ -156,7 +156,7 @@ export default function PaymentModal({
             clientSecret={clientSecret}
             stripeAccountId={stripeAccountId}
           >
-            <ViaCheckout amount={parsedAmount} />
+            <ViaCheckout amount={parsedAmount} cardId={cardId} />
           </StripeProvider>
         )}
       </div>
